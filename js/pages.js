@@ -50,27 +50,146 @@ PTE.Pages = {
       </div>`;
     }
 
+    let plannerSummary = '';
+    if (PTE.Planner) {
+      const planner = PTE.Planner.getData();
+      if (planner) {
+        const daysLeft = PTE.Planner.getDaysLeft();
+        const todayPlan = PTE.Planner.getTodayPlan();
+        const totalPending = todayPlan ? Object.values(todayPlan.plan).reduce((sum, item) => sum + Math.max(0, item.remaining), 0) : 0;
+        const topPending = todayPlan ? Object.entries(todayPlan.plan)
+          .sort((a, b) => b[1].remaining - a[1].remaining)
+          .slice(0, 3)
+          .map(([typeId, item]) => {
+            const type = PTE.Planner._findType(typeId);
+            return type ? `<div class="flex items-center justify-between py-1.5"><span class="text-zinc-300 text-sm">${type.name}</span><span class="text-[var(--accent-light)] font-mono text-xs">${item.remaining} left</span></div>` : '';
+          })
+          .join('') : '';
+        const completion = todayPlan ? todayPlan.pct : 0;
+        plannerSummary = `
+          <section class="px-4 pb-6">
+            <div class="max-w-5xl mx-auto card-elevated rounded-2xl p-5 md:p-6">
+              <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p class="text-[10px] uppercase tracking-[0.18em] text-[var(--accent-light)] font-semibold">Exam dashboard</p>
+                  <h2 class="text-xl font-semibold text-zinc-100 mt-1">${daysLeft === 0 ? 'Exam day is here' : `${daysLeft ?? 0} days left`}</h2>
+                </div>
+                <a href="#/planner" class="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-white/[0.02] px-3.5 py-2 text-xs font-semibold text-zinc-200 hover:border-[rgba(109,92,255,0.35)] transition-all">Open planner</a>
+              </div>
+
+              <div class="mt-5 grid gap-3 md:grid-cols-3">
+                <div class="rounded-xl border border-[var(--border)] bg-white/[0.02] p-4">
+                  <p class="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Target score</p>
+                  <p class="mt-2 text-2xl font-semibold text-white font-mono">${planner.targetScore || 65}+</p>
+                </div>
+                <div class="rounded-xl border border-[var(--border)] bg-white/[0.02] p-4">
+                  <p class="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Today’s task</p>
+                  <p class="mt-2 text-2xl font-semibold text-white font-mono">${totalPending}</p>
+                </div>
+                <div class="rounded-xl border border-[var(--border)] bg-white/[0.02] p-4">
+                  <p class="text-[10px] uppercase tracking-[0.12em] text-zinc-500">Progress</p>
+                  <p class="mt-2 text-2xl font-semibold text-[var(--accent-light)] font-mono">${completion}%</p>
+                </div>
+              </div>
+
+              <div class="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-sm font-semibold text-zinc-200">Pending today</h3>
+                  <span class="text-[10px] uppercase tracking-[0.12em] text-zinc-500">${totalPending} remaining</span>
+                </div>
+                <div class="space-y-1">${topPending || `<p class="text-sm text-zinc-500">You’re all caught up for today.</p>`}</div>
+              </div>
+            </div>
+          </section>`;
+      } else {
+        plannerSummary = `
+          <section class="px-4 pb-6">
+            <div class="max-w-5xl mx-auto card-elevated rounded-2xl p-5 md:p-6">
+              <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p class="text-[10px] uppercase tracking-[0.18em] text-[var(--accent-light)] font-semibold">Exam dashboard</p>
+                  <h2 class="text-xl font-semibold text-zinc-100 mt-1">Set your exam plan</h2>
+                </div>
+                <a href="#/planner" class="inline-flex items-center justify-center rounded-xl border border-[var(--border)] bg-white/[0.02] px-3.5 py-2 text-xs font-semibold text-zinc-200 hover:border-[rgba(109,92,255,0.35)] transition-all">Create plan</a>
+              </div>
+              <p class="mt-4 text-sm text-zinc-400">Add your target score and exam date to see your remaining days, today’s task list, and study progress.</p>
+            </div>
+          </section>`;
+      }
+    }
+
+    let predictionSummary = '';
+    if (PTE.Predictions) {
+      const predictionTypes = Object.values(PTE.QUESTION_TYPES || {});
+      const latestPredictions = [];
+      predictionTypes.forEach((type) => {
+        (PTE.Predictions[type.id] || []).forEach((question) => {
+          if (!question.stale) latestPredictions.push({ type, question });
+        });
+      });
+      latestPredictions.sort((a, b) => {
+        const dateOrder = String(b.question.publishedAt || '').localeCompare(String(a.question.publishedAt || ''));
+        if (dateOrder !== 0) return dateOrder;
+        const researchedA = a.question.frequency === 'research-sample' ? 1 : 0;
+        const researchedB = b.question.frequency === 'research-sample' ? 1 : 0;
+        return researchedB - researchedA;
+      });
+      const totalCurrent = latestPredictions.length;
+      const latestCards = latestPredictions.slice(0, 5).map(({ type, question }) => {
+        const prompt = question.text || question.prompt || question.scenario || question.audioText || 'Prediction question';
+        return `<a href="#/predictions/${type.id}" class="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white/[0.02] p-3 hover:border-amber-500/30 transition-colors">
+          <span class="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-sm" style="background:${type.color}11">${type.icon}</span>
+          <span class="min-w-0 flex-1"><span class="block text-[10px] uppercase tracking-[0.12em] text-amber-400">${type.shortName} · ${question.frequency || 'Current'}</span><span class="block truncate text-xs text-zinc-300">${prompt}</span></span>
+          <span class="text-zinc-600">→</span>
+        </a>`;
+      }).join('');
+      predictionSummary = `
+        <section class="px-4 pb-6">
+          <div class="max-w-5xl mx-auto card-elevated rounded-2xl p-5 md:p-6 border-amber-500/10">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p class="text-[10px] uppercase tracking-[0.18em] text-amber-400 font-semibold">Latest prediction set</p>
+                <h2 class="text-xl font-semibold text-zinc-100 mt-1">${totalCurrent} current prediction questions</h2>
+                <p class="text-xs text-zinc-500 mt-1">Unofficial, high-frequency practice based on the app’s dated prediction bank.</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <a href="#/researched-predictions" class="inline-flex items-center justify-center rounded-xl border border-cyan-500/20 bg-cyan-500/[0.06] px-3.5 py-2 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/[0.12] transition-all">Research set →</a>
+                <a href="#/predictions" class="inline-flex items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3.5 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/[0.12] transition-all">All predictions →</a>
+              </div>
+            </div>
+            <div class="mt-4 grid gap-2">${latestCards || '<p class="text-sm text-zinc-500">No current predictions are available.</p>'}</div>
+            <p class="mt-3 text-[10px] text-zinc-600">Predictions are not guaranteed exam questions. Always prepare across every task type.</p>
+          </div>
+        </section>`;
+    }
+
     return `
     ${PTE.UI.navbar('home')}
     <main class="min-h-screen">
       <!-- Hero -->
-      <section class="relative">
-        <div class="max-w-4xl mx-auto px-4 py-14 md:py-20 text-center">
+      <section class="home-hero relative" data-parallax-layer="hero">
+        <div class="home-hero-orb home-hero-orb-one" data-parallax-layer="orb"></div>
+        <div class="home-hero-orb home-hero-orb-two" data-parallax-layer="orb"></div>
+        <div class="max-w-5xl mx-auto px-4 py-14 md:py-24 text-center relative z-10">
           ${user ? `<p class="text-sm text-[var(--accent-light)] font-medium mb-3">Welcome back, ${user.username}</p>` : ''}
-          <h1 class="text-3xl md:text-4xl font-bold tracking-tight mb-3">
-            <span class="gradient-text">PTEverse</span>
+          <div class="hero-eyebrow"><span class="hero-eyebrow-dot"></span> Your intelligent PTE training space</div>
+          <h1 class="text-4xl md:text-6xl font-bold tracking-tight mb-5 hero-title">
+            Prepare with <span class="gradient-text">clarity.</span>
           </h1>
-          <p class="text-sm md:text-base text-zinc-500 mb-8 max-w-xl mx-auto">
-            Full PTE prep across all 4 sections and 22 question types — 600+ speaking predictions, AI scoring, mock tests, and smart progress tracking.
+          <p class="text-sm md:text-lg text-zinc-400 mb-9 max-w-2xl mx-auto hero-copy">
+            Practice every PTE Academic skill in one focused workspace, with realistic feedback that shows you what to do next.
           </p>
           <div class="flex flex-col sm:flex-row gap-3 justify-center">
-            <a href="#/mock-test" class="btn-primary px-6 py-2.5">Take Mock Test</a>
-            <a href="#/practice" class="btn-secondary px-6 py-2.5">Practice by Type</a>
+            <a href="#/mock-test" class="btn-primary px-7 py-3 hero-cta">Start a mock test <span aria-hidden="true">→</span></a>
+            <a href="#/practice" class="btn-secondary px-7 py-3">Explore practice <span aria-hidden="true">↗</span></a>
           </div>
+          <div class="hero-signal-row"><span>22 question types</span><i></i><span>AI-assisted feedback</span><i></i><span>Progress that compounds</span></div>
         </div>
       </section>
 
       ${profileCard ? `<section class="px-4">${profileCard}</section>` : ''}
+      ${plannerSummary}
+      ${predictionSummary}
 
       <!-- Onboarding -->
       ${(() => {
@@ -135,25 +254,25 @@ PTE.Pages = {
           </div>
           <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 stagger">
             <a href="#/practice" class="module-card group">
-              <div class="module-icon" style="background:#6366f111">🎙️</div>
+              <div class="module-icon module-icon-speaking" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3M8 21h8"/></svg></div>
               <h3 class="font-semibold text-zinc-200 text-sm mb-1 group-hover:text-[var(--accent-light)] transition-colors">Speaking</h3>
               <p class="text-xs text-zinc-500 mb-2">7 question types including Read Aloud, Repeat Sentence, and more.</p>
               <span class="text-[10px] text-zinc-600">${Object.keys(PTE.QUESTION_TYPES).length} types · ${Object.values(PTE.Questions).reduce((s,a)=>s+a.length,0)}+ questions</span>
             </a>
             <a href="#/writing" class="module-card group">
-              <div class="module-icon" style="background:#0ea5e911">✍️</div>
+              <div class="module-icon module-icon-writing" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l3.2-.7L19.3 7.2a2.1 2.1 0 0 0-3-3L4.2 16.3 4 20Z"/></svg></div>
               <h3 class="font-semibold text-zinc-200 text-sm mb-1 group-hover:text-[var(--accent-light)] transition-colors">Writing</h3>
               <p class="text-xs text-zinc-500 mb-2">Summarize Written Text and Write Essay with AI scoring.</p>
               <span class="text-[10px] text-zinc-600">${PTE.WRITING_TYPES ? Object.keys(PTE.WRITING_TYPES).length : 2} types</span>
             </a>
             <a href="#/reading" class="module-card group">
-              <div class="module-icon" style="background:#f59e0b11">📖</div>
+              <div class="module-icon module-icon-reading" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21V5.5ZM20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5A2.5 2.5 0 0 1 20 21V5.5Z"/></svg></div>
               <h3 class="font-semibold text-zinc-200 text-sm mb-1 group-hover:text-[var(--accent-light)] transition-colors">Reading</h3>
               <p class="text-xs text-zinc-500 mb-2">Fill in Blanks, Re-order Paragraphs, Multiple Choice, and more.</p>
               <span class="text-[10px] text-zinc-600">${PTE.READING_TYPES ? Object.keys(PTE.READING_TYPES).length : 5} types</span>
             </a>
             <a href="#/listening" class="module-card group">
-              <div class="module-icon" style="background:#8b5cf611">🎧</div>
+              <div class="module-icon module-icon-listening" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13v-1a8 8 0 0 1 16 0v1M4 13v4a2 2 0 0 0 2 2h1v-7H6a2 2 0 0 0-2 2ZM20 13v4a2 2 0 0 1-2 2h-1v-7h1a2 2 0 0 1 2 2Z"/></svg></div>
               <h3 class="font-semibold text-zinc-200 text-sm mb-1 group-hover:text-[var(--accent-light)] transition-colors">Listening</h3>
               <p class="text-xs text-zinc-500 mb-2">Summarize Spoken Text, Write from Dictation, and 6 more types.</p>
               <span class="text-[10px] text-zinc-600">${PTE.LISTENING_TYPES ? Object.keys(PTE.LISTENING_TYPES).length : 8} types</span>
@@ -496,6 +615,7 @@ PTE.Pages = {
             ${Object.entries(sourceCounts).map(([src, count]) => `<span class="text-[10px] font-medium px-2 py-1 rounded-full bg-white/[0.03] border border-[var(--border)] text-zinc-400">${src}: ${count}</span>`).join('')}
           </div>
           <p class="text-lg font-semibold text-amber-400 font-mono">${totalPredictions} total</p>
+          <a href="#/researched-predictions" class="inline-flex mt-3 text-xs font-semibold text-cyan-300 hover:text-cyan-200">Open researched prediction set →</a>
         </div>
       </section>
       <div class="max-w-4xl mx-auto px-4 pb-10">
@@ -524,6 +644,83 @@ PTE.Pages = {
           }).join('')}
         </div>
       </div>
+    </main>`;
+  },
+
+  // ── Publicly researched prediction samples ────────────────
+  researchedPredictions() {
+    const researched = [];
+    Object.entries(PTE.Predictions || {}).forEach(([typeId, questions]) => {
+      const type = Object.values(PTE.QUESTION_TYPES || {}).find(t => t.id === typeId);
+      (questions || []).filter(q => q.frequency === 'research-sample').forEach(q => researched.push({ type, typeId, question: q }));
+    });
+    const grouped = researched.reduce((groups, item) => {
+      (groups[item.typeId] ||= []).push(item);
+      return groups;
+    }, {});
+    return `
+    ${PTE.UI.navbar('predictions')}
+    <main class="min-h-screen">
+      <section class="px-4 py-10 md:py-14">
+        <div class="max-w-4xl mx-auto">
+          <a href="#/predictions" class="text-xs text-amber-400 hover:text-amber-300">← All predictions</a>
+          <div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div class="inline-flex items-center rounded-full bg-cyan-500/5 border border-cyan-500/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-300">Research-sourced</div>
+              <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-zinc-100 mt-3">Latest researched predictions</h1>
+              <p class="text-sm text-zinc-500 mt-2 max-w-xl">A separate collection of publicly accessible sample material, kept apart from the main prediction bank.</p>
+            </div>
+            <span class="text-sm font-mono text-cyan-300">${researched.length} questions</span>
+          </div>
+          <div class="mt-8 space-y-5">
+            ${Object.entries(grouped).map(([typeId, items]) => {
+              const type = items[0].type;
+              return `<section class="card-elevated rounded-2xl p-4 md:p-5">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                  <h2 class="text-sm font-semibold text-zinc-200">${type ? `${type.icon} ${type.name}` : typeId}</h2>
+                  <a href="#/predictions/${typeId}" class="text-[10px] font-semibold text-amber-400 hover:text-amber-300">Practice type →</a>
+                </div>
+                <div class="space-y-2">
+                  ${items.map(({ question }) => {
+                    const prompt = question.text || question.prompt || question.scenario || 'Chart practice sample';
+                    return `<article class="rounded-xl border border-[var(--border)] bg-white/[0.02] p-3">
+                      <div class="flex items-start justify-between gap-3">
+                        <p class="text-sm leading-6 text-zinc-300">${prompt}</p>
+                        <span class="shrink-0 text-[9px] uppercase tracking-[0.1em] text-cyan-300">${question.publishedAt || 'Research'}</span>
+                      </div>
+                      ${question.title ? `<p class="mt-2 text-xs text-zinc-500">${question.title}</p>` : ''}
+                      ${question.sourceUrl ? `<a class="mt-2 inline-block text-[10px] text-zinc-500 underline hover:text-zinc-300" href="${question.sourceUrl}" target="_blank" rel="noopener">View public source</a>` : ''}
+                    </article>`;
+                  }).join('')}
+                </div>
+              </section>`;
+            }).join('') || '<p class="text-sm text-zinc-500">No researched prediction samples are loaded.</p>'}
+          </div>
+          ${(() => {
+            const findings = PTE.ResearchedPredictionFindings || {};
+            return `
+            <section class="mt-6 card-elevated rounded-2xl p-4 md:p-5">
+              <h2 class="text-sm font-semibold text-zinc-200">Complete research findings</h2>
+              <p class="text-xs text-zinc-500 mt-1">Public guidance and context collected alongside the sample questions.</p>
+              <div class="mt-5">
+                <h3 class="text-[10px] uppercase tracking-[0.14em] text-cyan-300 font-semibold mb-2">Task guidance</h3>
+                <div class="space-y-2">
+                  ${(findings.taskGuidance || []).map(item => `<div class="rounded-xl border border-[var(--border)] bg-white/[0.02] p-3"><div class="flex flex-wrap items-center justify-between gap-2"><span class="text-xs font-semibold text-zinc-200">${item.task}</span><span class="text-[10px] text-zinc-600">${item.source}</span></div><p class="mt-1 text-xs leading-5 text-zinc-400">${item.finding}</p></div>`).join('')}
+                </div>
+              </div>
+              <div class="mt-5">
+                <h3 class="text-[10px] uppercase tracking-[0.14em] text-cyan-300 font-semibold mb-2">Describe Image templates</h3>
+                <div class="space-y-2">${(findings.describeImageTemplates || []).map((template, i) => `<div class="rounded-xl border border-[var(--border)] bg-white/[0.02] p-3 text-xs leading-5 text-zinc-400"><span class="mr-2 font-mono text-cyan-300">${i + 1}.</span>${template}</div>`).join('')}</div>
+              </div>
+              <div class="mt-5">
+                <h3 class="text-[10px] uppercase tracking-[0.14em] text-cyan-300 font-semibold mb-2">Research notes</h3>
+                <ul class="space-y-2">${(findings.caveats || []).map(note => `<li class="text-xs leading-5 text-zinc-500">• ${note}</li>`).join('')}</ul>
+              </div>
+            </section>`;
+          })()}
+          <p class="mt-6 text-[10px] leading-5 text-zinc-600">These are unofficial practice samples. They are not guaranteed Pearson exam questions.</p>
+        </div>
+      </section>
     </main>`;
   },
 

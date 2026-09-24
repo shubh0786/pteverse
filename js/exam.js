@@ -59,6 +59,22 @@ PTE.Exam = {
         { type: 'repeat-sentence', count: 6, label: 'Repeat Sentence' }
       ]
     },
+    'prediction-speaking': {
+      id: 'prediction-speaking',
+      name: 'Prediction Speaking Test',
+      description: 'Focused prediction-style practice: 6 Describe Image, 3 Re-tell Lecture, 3 Summarize Group Discussion, and 3 Respond to a Situation.',
+      duration: '~18 min',
+      icon: '🧪',
+      color: '#06b6d4',
+      sections: [
+        { type: 'describe-image', count: 6, label: 'Describe Image — 6 questions' },
+        { type: 'retell-lecture', count: 3, label: 'Re-tell Lecture — 3 questions' },
+        { type: 'summarize-group-discussion', count: 3, label: 'Summarize Group Discussion — 3 questions' },
+        { type: 'respond-to-situation', count: 3, label: 'Respond to a Situation — 3 questions' }
+      ],
+      templateCheck: true,
+      adaptive: true
+    },
     'full-pte': {
       id: 'full-pte',
       name: 'Full PTE Academic',
@@ -108,6 +124,107 @@ PTE.Exam = {
   questionStartTime: 0,
   micStream: null,
 
+  detectTemplateUse(transcript, type, question) {
+    if (!['retell-lecture', 'summarize-group-discussion', 'respond-to-situation'].includes(type)) return null;
+    const text = String(transcript || '').toLowerCase();
+    const words = text.match(/[a-z']+/g) || [];
+    const uniqueWords = new Set(words).size;
+    const vocabularyDiversity = words.length ? uniqueWords / words.length : 0;
+    const markers = {
+      'retell-lecture': ['the lecture is about', 'firstly', 'moreover', 'in conclusion', 'the speaker mentioned'],
+      'summarize-group-discussion': ['the group discussed', 'speaker a', 'speaker b', 'overall,', 'in conclusion'],
+      'respond-to-situation': ['thank you for', 'i wanted to discuss', 'i understand', 'i would like to suggest', 'would that be acceptable']
+    }[type];
+    const hits = markers.filter((marker) => text.includes(marker));
+    const source = type === 'summarize-group-discussion'
+      ? (question && question.speakers ? question.speakers.map((speaker) => speaker.text).join(' ') : '')
+      : type === 'respond-to-situation'
+        ? `${question && question.scenario ? question.scenario : ''} ${question && question.audioText ? question.audioText : ''}`
+        : (question && (question.audioText || question.text) ? (question.audioText || question.text) : '');
+    const sourceWords = (source.toLowerCase().match(/[a-z']+/g) || [])
+      .filter((word) => word.length > 4 && !['about', 'there', 'which', 'their', 'would', 'could'].includes(word));
+    const sourceTerms = [...new Set([...(question && question.keywords || []), ...sourceWords])].slice(0, 24);
+    const coveredTerms = sourceTerms.filter((term) => text.includes(String(term).toLowerCase()));
+    const taskCoverage = sourceTerms.length ? coveredTerms.length / sourceTerms.length : 0;
+    const genericPenalty = vocabularyDiversity < 0.42 && words.length >= 25 ? 1 : 0;
+    const signal = Math.min(1, hits.length / 3) * 0.55 + genericPenalty * 0.2 + (1 - taskCoverage) * 0.25;
+    const level = signal >= 0.62 ? 'high' : signal >= 0.38 ? 'medium' : 'low';
+    const likely = level !== 'low';
+    const confidence = Math.round(Math.min(0.95, 0.45 + Math.abs(signal - 0.5) * 0.9) * 100);
+    return {
+      likely, level, confidence, hits, coveredTerms, taskCoverage: Math.round(taskCoverage * 100),
+      vocabularyDiversity: Math.round(vocabularyDiversity * 100),
+      note: likely
+        ? 'Template-like phrasing may be limiting your task-specific response. Retry with your own structure and wording.'
+        : 'No strong memorized-template signal detected. Keep using task-specific ideas and natural phrasing.'
+    };
+  },
+
+  analyzeTaskFulfilment(transcript, type, question) {
+    const text = String(transcript || '').toLowerCase();
+    const source = type === 'summarize-group-discussion'
+      ? (question && question.speakers ? question.speakers.map((speaker) => speaker.text).join(' ') : '')
+      : type === 'respond-to-situation'
+        ? `${question && question.scenario ? question.scenario : ''} ${question && question.audioText ? question.audioText : ''}`
+        : (question && (question.audioText || question.text) ? (question.audioText || question.text) : '');
+    const terms = [...new Set([...(question && question.keywords || []), ...(source.match(/[a-z']+/gi) || [])
+      .filter((word) => word.length > 5)
+      .filter((word) => !['about', 'therefore', 'because', 'should', 'would', 'could', 'speaker'].includes(word.toLowerCase()))])].slice(0, 20);
+    const matched = terms.filter((term) => text.includes(String(term).toLowerCase()));
+    const missing = terms.filter((term) => !text.includes(String(term).toLowerCase())).slice(0, 8);
+    const coverage = terms.length ? Math.round((matched.length / terms.length) * 100) : 0;
+    const words = text.match(/[a-z']+/g) || [];
+    const length = words.length;
+    const level = coverage >= 60 && length >= 35 ? 'high' : coverage >= 30 && length >= 15 ? 'medium' : 'low';
+    return { level, coverage, matched: matched.slice(0, 8), missing, wordCount: length };
+  },
+
+  analyzeFluency(transcript, timestamps, duration) {
+    const words = String(transcript || '').toLowerCase().match(/[a-z']+/g) || [];
+    const wpm = duration > 0 ? Math.round((words.length / duration) * 60) : 0;
+    let longPauses = 0;
+    let hesitations = 0;
+    for (let i = 1; i < (timestamps || []).length; i++) {
+      const gap = timestamps[i].time - timestamps[i - 1].time;
+      if (gap > 3000) longPauses++;
+      else if (gap > 1500) hesitations++;
+    }
+    const repeatedWords = [];
+    for (let i = 1; i < words.length; i++) {
+      if (words[i] === words[i - 1] && !repeatedWords.includes(words[i])) repeatedWords.push(words[i]);
+    }
+    const level = wpm >= 100 && wpm <= 180 && longPauses === 0 && hesitations <= 1
+      ? 'strong'
+      : wpm >= 70 && longPauses <= 2
+        ? 'developing'
+        : 'needs practice';
+    return { level, wpm, longPauses, hesitations, repeatedWords: repeatedWords.slice(0, 6) };
+  },
+
+  questionDifficulty(question) {
+    const value = String(question && question.difficulty || '').toLowerCase();
+    if (value === 'easy' || value === 'medium' || value === 'hard') return value;
+    const text = String(question && (question.text || question.audioText || question.prompt || '')).trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    return words >= 70 ? 'hard' : words >= 30 ? 'medium' : 'easy';
+  },
+
+  adaptiveQuestionOrder(bank, type) {
+    const history = PTE.Store ? PTE.Store.getSessionsByType(type) : [];
+    const latestByQuestion = new Map();
+    history.forEach((session) => {
+      if (session.questionId && !latestByQuestion.has(session.questionId)) latestByQuestion.set(session.questionId, session.overallScore || 0);
+    });
+    return [...bank].sort((a, b) => {
+      const aScore = latestByQuestion.get(a.id);
+      const bScore = latestByQuestion.get(b.id);
+      const aPriority = aScore === undefined ? 2 : aScore < 65 ? 3 : 1;
+      const bPriority = bScore === undefined ? 2 : bScore < 65 ? 3 : 1;
+      if (aPriority !== bPriority) return bPriority - aPriority;
+      return Math.random() - 0.5;
+    });
+  },
+
   // ── Initialization ───────────────────────────────────────────
 
   /**
@@ -139,8 +256,8 @@ PTE.Exam = {
       const typeMap = TYPE_MAPS[module] || TYPE_MAPS.speaking;
       const typeConfig = Object.values(typeMap).find(t => t.id === section.type);
 
-      // Shuffle and pick
-      const shuffled = [...bank].sort(() => Math.random() - 0.5);
+      // Prefer unseen or previously weak items, then randomize within that priority.
+      const shuffled = config.adaptive ? this.adaptiveQuestionOrder(bank, section.type) : [...bank].sort(() => Math.random() - 0.5);
       let picked = 0;
 
       for (const q of shuffled) {
@@ -152,6 +269,7 @@ PTE.Exam = {
           module,
           typeConfig: typeConfig,
           question: q,
+          difficulty: this.questionDifficulty(q),
           sectionLabel: section.label,
           index: questions.length
         });
@@ -445,11 +563,15 @@ PTE.Exam = {
     }
 
     const overallScore = PTE.Scoring.calculateOverall(scores, type);
+    const taskFulfilment = this.config.templateCheck ? this.analyzeTaskFulfilment(transcript, type, question) : null;
+    const templateUse = this.config.templateCheck ? this.detectTemplateUse(transcript, type, question) : null;
+    const fluencyAnalysis = this.config.templateCheck ? this.analyzeFluency(transcript, wordTimestamps, recordDuration) : null;
 
     await this._completeAndAdvance({
       module: 'speaking',
       type, typeConfig, question, scores, overallScore, transcript, toneResults,
-      duration: recordDuration, audioUrl: PTE.AudioRecorder.audioUrl
+      duration: recordDuration, audioUrl: PTE.AudioRecorder.audioUrl, templateUse, taskFulfilment, fluencyAnalysis,
+      difficulty: this.questionDifficulty(question)
     });
   },
 
@@ -813,6 +935,45 @@ PTE.Exam = {
       transcript: `Mock test: ${results.length} questions`,
       duration: totalTime
     });
+    results.forEach((result) => {
+      if (!result.question || !result.question.id || !result.type) return;
+      PTE.Store.addSession({
+        type: result.type,
+        questionId: result.question.id,
+        overallScore: result.overallScore,
+        scores: result.scores,
+        transcript: result.transcript || '',
+        duration: result.duration || 0,
+        source: 'mock-test',
+        difficulty: result.difficulty || this.questionDifficulty(result.question)
+      });
+    });
+
+    if (PTE.Store.saveExamRun) {
+      PTE.Store.saveExamRun({
+        id: 'exam_' + Date.now(),
+        configId: this.config.id,
+        name: this.config.name,
+        overall: pteScore,
+        cefr,
+        modules: moduleAvgs,
+        enabling: { content: avgContent, pronunciation: avgPron, fluency: avgFlu, vocabulary: avgVoc },
+        items: results.map((r) => ({
+          type: r.type,
+          questionId: r.question && r.question.id ? r.question.id : '',
+          module: r.module || 'speaking',
+          overallScore: r.overallScore,
+          transcript: r.transcript || '',
+          audioUrl: r.audioUrl || '',
+          templateUse: r.templateUse || null,
+          taskFulfilment: r.taskFulfilment || null,
+          fluencyAnalysis: r.fluencyAnalysis || null,
+          difficulty: r.difficulty || this.questionDifficulty(r.question)
+        })),
+        duration: totalTime,
+        timestamp: Date.now()
+      });
+    }
 
     // Build result rows
     let resultRows = '';
@@ -825,12 +986,83 @@ PTE.Exam = {
         <div class="flex-1 min-w-0">
           <p class="text-sm font-medium text-zinc-200 truncate">${r.typeConfig.name}</p>
           <p class="text-xs text-zinc-500 truncate">${r.transcript ? r.transcript.slice(0, 60) + (r.transcript.length > 60 ? '...' : '') : 'No speech detected'}</p>
+          ${r.templateUse ? `<p class="text-[10px] ${r.templateUse.likely ? 'text-amber-400' : 'text-emerald-400'}">${r.templateUse.likely ? `Template signal: ${r.templateUse.level} (${r.templateUse.confidence}% confidence)` : `No strong template signal (${r.templateUse.confidence}% confidence)`}</p>` : ''}
+          ${r.question && r.question.id ? `<a href="#/retry/${r.type}/${encodeURIComponent(r.question.id)}" class="text-[10px] text-cyan-400 hover:text-cyan-300">Retry this question</a>` : ''}
         </div>
         <div class="text-right">
           <span class="text-sm font-bold" style="color:${b.color}">${r.overallScore}/90</span>
         </div>
       </div>`;
     });
+
+    const templateResults = results.filter((result) => result.templateUse);
+    const templateCard = templateResults.length ? `
+      <div class="card rounded-xl p-5 mb-6 border-cyan-500/10">
+        <h3 class="text-sm font-semibold text-zinc-200 mb-1">Natural response check</h3>
+        <p class="text-xs text-zinc-500 mb-4">Coaching estimate based on repeated phrasing, vocabulary variety, and task-specific coverage. This is not official Pearson scoring.</p>
+        <div class="space-y-3">
+          ${templateResults.map((result) => `
+            <div class="flex items-start gap-3 text-xs">
+              <span class="text-lg">${result.typeConfig.icon}</span>
+              <div class="flex-1">
+                <p class="text-zinc-300">${result.typeConfig.shortName}: ${result.templateUse.likely ? `Template signal ${result.templateUse.level}` : 'No strong template signal'}</p>
+                <p class="text-zinc-500">${result.templateUse.note}</p>
+                <p class="text-[10px] text-zinc-600 mt-1">Task-specific coverage: ${result.templateUse.taskCoverage}% · Vocabulary diversity: ${result.templateUse.vocabularyDiversity}% · Confidence: ${result.templateUse.confidence}%</p>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+    const fulfilmentResults = results.filter((result) => result.taskFulfilment);
+    const fulfilmentCard = fulfilmentResults.length ? `
+      <div class="card rounded-xl p-5 mb-6 border-indigo-500/10">
+        <h3 class="text-sm font-semibold text-zinc-200 mb-1">Task fulfilment</h3>
+        <p class="text-xs text-zinc-500 mb-4">This measures response coverage separately from template signals.</p>
+        <div class="space-y-3">
+          ${fulfilmentResults.map((result) => `
+            <div class="flex items-start gap-3 text-xs">
+              <span class="text-lg">${result.typeConfig.icon}</span>
+              <div class="flex-1">
+                <p class="text-zinc-300">${result.typeConfig.shortName}: ${result.taskFulfilment.level} coverage (${result.taskFulfilment.coverage}%) · ${result.taskFulfilment.wordCount} words</p>
+                <p class="text-emerald-400">Covered: ${result.taskFulfilment.matched.length ? result.taskFulfilment.matched.join(', ') : 'No key terms detected'}</p>
+                <p class="text-amber-400">Review: ${result.taskFulfilment.missing.length ? result.taskFulfilment.missing.join(', ') : 'No major tracked terms missing'}</p>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+    const fluencyResults = results.filter((result) => result.fluencyAnalysis);
+    const fluencyCard = fluencyResults.length ? `
+      <div class="card rounded-xl p-5 mb-6 border-emerald-500/10">
+        <h3 class="text-sm font-semibold text-zinc-200 mb-1">Fluency coaching</h3>
+        <p class="text-xs text-zinc-500 mb-4">Delivery signals are estimates from browser speech recognition timestamps.</p>
+        <div class="space-y-3">
+          ${fluencyResults.map((result) => `
+            <div class="flex items-start gap-3 text-xs">
+              <span class="text-lg">${result.typeConfig.icon}</span>
+              <div class="flex-1">
+                <p class="text-zinc-300">${result.typeConfig.shortName}: ${result.fluencyAnalysis.level} · ${result.fluencyAnalysis.wpm} words/min</p>
+                <p class="text-zinc-500">Long pauses: ${result.fluencyAnalysis.longPauses} · Hesitations: ${result.fluencyAnalysis.hesitations} · Repeated words: ${result.fluencyAnalysis.repeatedWords.length ? result.fluencyAnalysis.repeatedWords.join(', ') : 'none detected'}</p>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+    const difficultyGroups = {};
+    results.forEach((result) => {
+      const difficulty = result.difficulty || this.questionDifficulty(result.question);
+      if (!difficultyGroups[difficulty]) difficultyGroups[difficulty] = [];
+      difficultyGroups[difficulty].push(result.overallScore);
+    });
+    const difficultyCard = Object.keys(difficultyGroups).length ? `
+      <div class="card rounded-xl p-5 mb-6 border-amber-500/10">
+        <h3 class="text-sm font-semibold text-zinc-200 mb-1">Performance by difficulty</h3>
+        <p class="text-xs text-zinc-500 mb-4">Difficulty is tagged from the question bank or estimated from prompt complexity.</p>
+        <div class="grid grid-cols-3 gap-2">
+          ${['easy', 'medium', 'hard'].filter((level) => difficultyGroups[level]).map((level) => {
+            const scores = difficultyGroups[level];
+            const score = Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
+            return `<div class="rounded-lg bg-white/[0.03] p-3 text-center"><p class="text-[10px] uppercase text-zinc-500">${level}</p><p class="text-lg font-semibold text-zinc-200">${score}/90</p><p class="text-[10px] text-zinc-600">${scores.length} question${scores.length === 1 ? '' : 's'}</p></div>`;
+          }).join('')}
+        </div>
+      </div>` : '';
 
     // Type breakdown
     const ALL_TYPE_MAPS = [PTE.QUESTION_TYPES, PTE.WRITING_TYPES, PTE.READING_TYPES, PTE.LISTENING_TYPES];
@@ -881,7 +1113,8 @@ PTE.Exam = {
       }).join('');
       moduleCard = `
         <div class="bg-[var(--surface-1)] rounded-xl border border-[var(--border)] shadow-sm p-6 mb-6">
-          <h3 class="font-semibold text-zinc-200 mb-4">Module Scores</h3>
+          <h3 class="font-semibold text-zinc-200 mb-4">Communicative skills</h3>
+          <p class="text-[11px] text-zinc-500 mb-4">Speaking, Writing, Reading, and Listening averages from this run. Enabling skills are estimates, not official Pearson scores.</p>
           <div class="space-y-4">${rows}</div>
         </div>`;
     }
@@ -939,6 +1172,14 @@ PTE.Exam = {
         ` : ''}
 
         ${moduleCard}
+
+        ${templateCard}
+
+        ${fulfilmentCard}
+
+        ${fluencyCard}
+
+        ${difficultyCard}
 
         <!-- By Question Type -->
         <div class="bg-[var(--surface-1)] rounded-xl border border-[var(--border)] shadow-sm p-6 mb-6">

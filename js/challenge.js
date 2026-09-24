@@ -16,6 +16,7 @@ PTE.Challenge = {
    */
   create() {
     const types = ['read-aloud','repeat-sentence','describe-image','answer-short-question','retell-lecture'];
+    const seed = Date.now().toString(36);
     const picks = [];
     types.forEach(type => {
       const bank = PTE.Questions[type] || [];
@@ -25,9 +26,10 @@ PTE.Challenge = {
       }
     });
 
-    const code = btoa(JSON.stringify(picks)).replace(/=/g, '');
+    const payload = { v: 2, seed, picks };
+    const code = btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
     const url = window.location.origin + window.location.pathname + '#/challenge/' + code;
-    return { code, url, picks };
+    return { code, url, picks, seed };
   },
 
   /**
@@ -35,8 +37,11 @@ PTE.Challenge = {
    */
   decode(code) {
     try {
-      const padded = code + '='.repeat((4 - code.length % 4) % 4);
-      return JSON.parse(atob(padded));
+      const padded = String(code).replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - String(code).length % 4) % 4);
+      const parsed = JSON.parse(decodeURIComponent(escape(atob(padded))));
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && Array.isArray(parsed.picks)) return parsed.picks;
+      return null;
     } catch(e) { return null; }
   },
 
@@ -87,7 +92,7 @@ PTE.Challenge = {
               <input id="challenge-url" readonly class="flex-1 bg-white/[0.02] border border-[var(--border)] rounded-xl px-4 py-3 text-cyan-400 text-sm font-mono truncate">
               <button onclick="navigator.clipboard.writeText(document.getElementById('challenge-url').value).then(()=>this.textContent='Copied!')" class="px-4 py-3 rounded-xl bg-cyan-500/15 border border-cyan-500/20 text-cyan-400 font-semibold text-sm hover:bg-cyan-500/25 transition-all">Copy</button>
             </div>
-            <p class="text-xs text-zinc-600 mt-3">Your friend opens this link and answers the same 5 questions. Then compare scores!</p>
+            <p class="text-xs text-zinc-600 mt-3">Anyone with this URL gets the same five questions. Scores stay on each device unless you use cloud sync.</p>
           </div>
         </div>
 

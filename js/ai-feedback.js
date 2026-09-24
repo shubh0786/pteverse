@@ -80,6 +80,45 @@ PTE.AIFeedback = {
     return feedback;
   },
 
+  SCORE_URL: '/api/score-attempt',
+
+  async scoreRemote(params, localFeedback) {
+    const local = localFeedback || this.generate(params) || { source: 'local' };
+    local.source = local.source || 'local';
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(this.SCORE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: params.type,
+          transcript: params.transcript,
+          expected: params.expected,
+          keywords: params.keywords,
+          duration: params.duration,
+          maxDuration: params.maxDuration,
+          scores: params.scores,
+          confidence: params.confidence
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (!res.ok) return local;
+      const data = await res.json();
+      return {
+        ...local,
+        source: data.source === 'ai' ? 'ai' : 'local',
+        overallSummary: data.overallSummary || local.overallSummary,
+        nextDrills: data.nextDrills || local.practiceExercises || [],
+        missedContentPoints: data.missedContentPoints || [],
+        remoteBands: data.bands || null
+      };
+    } catch (e) {
+      return { ...local, source: 'local', remoteError: true };
+    }
+  },
+
   _wordByWordAnalysis(transcript, expected) {
     const recWords = transcript.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w);
     const expWords = expected.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(w => w);

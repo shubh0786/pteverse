@@ -42,6 +42,7 @@ window.PTE._bankSpeaking = {
 {id:'xra-33',text:'Insects play a crucial role in maintaining healthy ecosystems. They pollinate crops, decompose organic matter, and serve as a food source for many other animals. The recent decline in insect populations, driven by habitat loss and pesticide use, has raised alarm among scientists about the potential consequences for food security and biodiversity.',keywords:['insects','crucial','role','maintaining','healthy','ecosystems','pollinate','crops','decompose','organic','matter','food','source','animals','recent','decline','populations','driven','habitat','loss','pesticide','alarm','scientists','consequences','food','security','biodiversity']},
 {id:'xra-34',text:'Desertification, the process by which fertile land becomes desert, affects millions of people worldwide. It is caused by a combination of climate change, overgrazing, deforestation, and poor agricultural practices. The United Nations has identified combating desertification as one of its key sustainable development goals.',keywords:['desertification','process','fertile','land','becomes','desert','affects','millions','people','worldwide','caused','combination','climate','change','overgrazing','deforestation','poor','agricultural','practices','United','Nations','identified','combating','sustainable','development','goals']},
 {id:'xra-35',text:'The study of linguistics examines the structure, development, and use of human language. Linguists investigate how languages are acquired, how they change over time, and how they vary across different communities. Understanding language is essential for fields ranging from artificial intelligence to cross-cultural communication.',keywords:['study','linguistics','examines','structure','development','use','human','language','linguists','investigate','languages','acquired','change','time','vary','different','communities','understanding','essential','fields','artificial','intelligence','cross-cultural','communication']},
+{id:'xra-36',text:'Renewable energy technologies are changing the way societies produce electricity. Solar panels and wind turbines generate power without burning fossil fuels, while improved batteries help store energy for periods of high demand. Continued investment in clean infrastructure can reduce emissions and strengthen energy security.',keywords:['renewable','energy','technologies','changing','societies','electricity','solar','panels','wind','turbines','generate','power','fossil','fuels','batteries','store','demand','investment','clean','infrastructure','emissions','security']},
 ],
 
 'repeat-sentence': [
@@ -125,6 +126,7 @@ window.PTE._bankSpeaking = {
 {id:'xrs-78',text:'Urban sprawl has led to increased traffic congestion in many cities.',keywords:['urban','sprawl','led','increased','traffic','congestion','many','cities']},
 {id:'xrs-79',text:'The program is designed to help students transition from school to university.',keywords:['program','designed','help','students','transition','school','university']},
 {id:'xrs-80',text:'Antibiotics should only be used when prescribed by a qualified doctor.',keywords:['antibiotics','should','only','used','prescribed','qualified','doctor']},
+{id:'xrs-81',text:'The visiting professor will deliver a public lecture on sustainable architecture tomorrow.',keywords:['visiting','professor','deliver','public','lecture','sustainable','architecture','tomorrow']},
 ],
 
 'describe-image': [
@@ -158,6 +160,9 @@ window.PTE._bankSpeaking = {
 {id:'xdi-10',chartType:'bar',title:'Happiness Index Score by Country',
   data:[{label:'Finland',value:7.8,color:'#3b82f6'},{label:'Denmark',value:7.6,color:'#6366f1'},{label:'Switzerland',value:7.5,color:'#10b981'},{label:'Netherlands',value:7.4,color:'#f59e0b'},{label:'Norway',value:7.3,color:'#ef4444'},{label:'Australia',value:7.2,color:'#8b5cf6'}],
   keywords:['bar chart','happiness','index','score','country','Finland','highest','Australia','lowest','Denmark','Switzerland','Netherlands','Norway','comparison','well-being']},
+{id:'xdi-11',chartType:'line',title:'Daily Library Visits During Exam Week',
+  data:[{label:'Monday',value:420},{label:'Tuesday',value:510},{label:'Wednesday',value:575},{label:'Thursday',value:640},{label:'Friday',value:710},{label:'Saturday',value:680},{label:'Sunday',value:390}],
+  keywords:['line graph','library','visits','exam','week','Monday','Friday','highest','Sunday','lowest','increase','peak','decline','students','daily','trend']},
 ],
 
 'retell-lecture': [
@@ -169,18 +174,128 @@ window.PTE._bankSpeaking = {
 {id:'xrl-6',text:'I would like to discuss the future of work and how technology is reshaping employment patterns. The gig economy, characterized by short-term contracts and freelance work, has grown dramatically in recent years, enabled by digital platforms. While this offers workers flexibility and autonomy, it also raises concerns about job security, benefits, and workers\' rights. Simultaneously, artificial intelligence is automating routine cognitive tasks previously done by skilled professionals. The challenge for societies is to create regulatory frameworks that protect workers while encouraging innovation. Education systems must also evolve to prepare students for careers that may not yet exist.',keywords:['future','work','technology','reshaping','employment','patterns','gig','economy','short-term','contracts','freelance','grown','dramatically','digital','platforms','workers','flexibility','autonomy','concerns','job','security','benefits','rights','artificial','intelligence','automating','routine','cognitive','regulatory','frameworks','innovation','education','prepare','careers']},
 {id:'xrl-7',text:'Today we examine the fascinating world of deep sea exploration. Despite covering more than seventy percent of the Earth\'s surface, the oceans remain largely unexplored. In fact, we have better maps of Mars than of our own ocean floor. The deep sea, below two hundred meters, is home to some of the most unusual creatures on the planet, living in extreme conditions of darkness, cold, and pressure. Recent technological advances in submersibles and underwater robotics are opening up new possibilities for research. Scientists have discovered hydrothermal vents that support entirely unique ecosystems, challenging our understanding of where and how life can exist.',keywords:['deep','sea','exploration','seventy','percent','Earth','surface','oceans','unexplored','maps','Mars','ocean','floor','two','hundred','meters','unusual','creatures','extreme','conditions','darkness','cold','pressure','technological','advances','submersibles','robotics','research','hydrothermal','vents','unique','ecosystems','life']},
 {id:'xrl-8',text:'Let me talk about the architecture of ancient Rome and its lasting influence. The Romans were remarkable engineers who developed innovations such as the arch, the dome, and concrete, which allowed them to construct buildings of unprecedented scale and durability. The Colosseum, the Pantheon, and the aqueducts are testament to their engineering prowess. Roman architectural principles, including symmetry, proportion, and the use of columns, were revived during the Renaissance and continue to influence building design today. Many government buildings, museums, and universities around the world draw directly from Roman architectural traditions.',keywords:['architecture','ancient','Rome','lasting','influence','Romans','remarkable','engineers','innovations','arch','dome','concrete','construct','buildings','unprecedented','scale','durability','Colosseum','Pantheon','aqueducts','engineering','prowess','principles','symmetry','proportion','columns','Renaissance','influence','building','design','government','museums','universities','traditions']},
+{id:'xrl-9',text:'Today we will examine how public libraries are adapting to the digital age. Although online resources have changed the way people access information, libraries remain important community spaces for learning and collaboration. Many libraries now provide digital lending, technology training, study areas, and workshops for job seekers. Their future depends on combining reliable physical collections with inclusive digital services that meet the needs of diverse communities.',keywords:['public','libraries','adapting','digital','age','online','resources','information','community','spaces','learning','collaboration','digital','lending','technology','training','study','workshops','job','seekers','future','physical','collections','inclusive','services','communities']},
+],
+
+'answer-short-question': [
+{id:'xasq-1',text:'What instrument is used to measure atmospheric pressure?',answer:'barometer',keywords:['barometer']},
+],
+
+'summarize-group-discussion': [
+{id:'xsgd-1',speakers:[
+  {name:'Speaker A',text:'Universities should provide more practical career training because students need skills they can apply immediately in the workplace.'},
+  {name:'Speaker B',text:'I agree that practical skills matter, but academic research and critical thinking are also essential for long-term professional growth.'},
+  {name:'Speaker C',text:'A combination of both approaches would be best. Internships and project-based courses could connect theory with real workplace experience.'}
+],keywords:['universities','practical','career','training','skills','workplace','academic','research','critical','thinking','professional','growth','internships','project-based','theory','experience']},
+],
+
+'respond-to-situation': [
+{id:'xrts-1',scenario:'You booked a quiet study room at your university, but another group is using it without a reservation. Politely explain the situation and ask them to move to another available room.',audioText:'You reserved a quiet study room, but another group is using it. Ask them politely to move.',keywords:['reserved','study room','reservation','booked','quiet','understand','move','available','room','polite','sorry','please']},
 ],
 
 };
 
+// A large practice set kept separate from the hand-written seed questions.
+// These items are prepended by mergeBankSpeaking so new practice appears first.
+PTE._bankSpeakingLarge = {};
+(function() {
+  var topics = [
+    'renewable energy','urban planning','public health','digital education','marine biology',
+    'climate policy','space research','food security','wildlife conservation','financial literacy',
+    'mental wellbeing','modern agriculture','transport technology','cultural heritage','water management',
+    'language learning','ethical technology','community gardens','remote collaboration','ocean science',
+    'medical research','sustainable tourism','data privacy','air quality','healthy cities',
+    'workplace learning','international trade','early childhood education','electric vehicles','forest management',
+    'media literacy','disaster preparation','architectural design','social entrepreneurship','nutrition science',
+    'public transport','migration patterns','consumer behavior','scientific communication','accessibility design',
+    'creative industries','energy storage','urban biodiversity','online safety','research methods',
+    'community volunteering','economic development','library services','environmental law','career planning'
+  ];
+  var words = function(text) {
+    return text.toLowerCase().replace(/[^a-z0-9\s-]/g, '').split(/\s+/).filter(Boolean);
+  };
+
+  PTE._bankSpeakingLarge['read-aloud'] = topics.map(function(topic, i) {
+    var text = 'This passage examines ' + topic + ' and its growing importance in contemporary society. Researchers and communities are developing practical solutions, while careful planning helps ensure that innovation remains responsible, inclusive, and beneficial for future generations.';
+    return { id: 'new-ra-' + (i + 1), text: text, keywords: words(text) };
+  });
+
+  PTE._bankSpeakingLarge['repeat-sentence'] = topics.map(function(topic, i) {
+    var text = 'The university research team is studying ' + topic + ' this semester.';
+    return { id: 'new-rs-' + (i + 1), text: text, keywords: words(text) };
+  });
+
+  PTE._bankSpeakingLarge['describe-image'] = topics.map(function(topic, i) {
+    var first = 25 + ((i * 7) % 46);
+    var second = 18 + ((i * 11) % 38);
+    var third = 12 + ((i * 13) % 32);
+    var fourth = 8 + ((i * 5) % 25);
+    var title = 'Participation in ' + topic + ' Programs (%)';
+    return {
+      id: 'new-di-' + (i + 1),
+      chartType: i % 3 === 0 ? 'bar' : (i % 3 === 1 ? 'line' : 'pie'),
+      title: title,
+      data: [
+        {label:'Group A', value:first, color:'#6366f1'},
+        {label:'Group B', value:second, color:'#10b981'},
+        {label:'Group C', value:third, color:'#f59e0b'},
+        {label:'Group D', value:fourth, color:'#ec4899'}
+      ],
+      keywords: words(title + ' highest lowest comparison trend percentage')
+    };
+  });
+
+  PTE._bankSpeakingLarge['retell-lecture'] = topics.map(function(topic, i) {
+    var text = 'The lecture focuses on ' + topic + '. The speaker explains why the issue matters, identifies several current challenges, and describes practical responses. The main conclusion is that informed decisions, cooperation, and long-term investment are needed to achieve reliable progress.';
+    return { id: 'new-rl-' + (i + 1), text: text, keywords: words(text) };
+  });
+
+  PTE._bankSpeakingLarge['answer-short-question'] = topics.map(function(topic, i) {
+    var answers = ['research','planning','education','conservation','technology','health','transport','agriculture','communication','science'];
+    var answer = answers[i % answers.length];
+    var text = 'Which field is most closely related to ' + topic + '?';
+    return { id: 'new-asq-' + (i + 1), text: text, answer: answer, keywords: [answer] };
+  });
+
+  PTE._bankSpeakingLarge['summarize-group-discussion'] = topics.map(function(topic, i) {
+    return {
+      id: 'new-sgd-' + (i + 1),
+      speakers: [
+        {name:'Speaker A', text:'I think ' + topic + ' should receive more attention because it affects everyday life and future development.'},
+        {name:'Speaker B', text:'That is reasonable, although limited funding and different community needs make implementation difficult.'},
+        {name:'Speaker C', text:'A balanced approach would combine evidence, public consultation, and measurable long-term goals.'}
+      ],
+      keywords: words(topic + ' attention development funding community evidence consultation long-term goals')
+    };
+  });
+
+  PTE._bankSpeakingLarge['respond-to-situation'] = topics.map(function(topic, i) {
+    var scenario = 'You are working on a university project about ' + topic + ', but your teammate has missed an important deadline. Politely explain the impact and suggest a practical plan to complete the work.';
+    return {
+      id: 'new-rts-' + (i + 1),
+      scenario: scenario,
+      audioText: 'Discuss a missed project deadline and suggest a practical solution.',
+      keywords: words(topic + ' project teammate deadline impact plan complete discuss suggest solution')
+    };
+  });
+}());
+
 // Merge function - called by app.js during init
 PTE.mergeBankSpeaking = function() {
-  for (var type in PTE._bankSpeaking) {
+  var banks = [PTE._bankSpeaking, PTE._bankSpeakingLarge];
+  banks.forEach(function(bank) {
+  for (var type in bank) {
     if (!PTE.Questions[type]) PTE.Questions[type] = [];
     var existing = {};
     PTE.Questions[type].forEach(function(q) { existing[q.id] = true; });
-    PTE._bankSpeaking[type].forEach(function(q) {
-      if (!existing[q.id]) PTE.Questions[type].push(q);
+    var additions = [];
+    bank[type].forEach(function(q) {
+      if (!existing[q.id]) {
+        existing[q.id] = true;
+        additions.push(q);
+      }
     });
+    PTE.Questions[type] = additions.concat(PTE.Questions[type]);
   }
+  });
 };

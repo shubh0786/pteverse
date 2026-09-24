@@ -17,7 +17,7 @@ PTE.Store = {
     }
   },
 
-  save(data) {
+  save(data, sync = true) {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
@@ -41,6 +41,9 @@ PTE.Store = {
     // Update stats
     this.updateStats(data);
     this.save(data);
+    if (sync && PTE.Cloud && PTE.Cloud.accessToken) {
+      PTE.Cloud.syncNow().catch(() => {});
+    }
   },
 
   updateStats(data) {
@@ -241,5 +244,31 @@ PTE.Store = {
 
   clearAll() {
     localStorage.removeItem(this.STORAGE_KEY);
+    localStorage.removeItem(this.EXAM_RUNS_KEY);
+  },
+
+  EXAM_RUNS_KEY: 'pte_exam_runs',
+
+  getExamRuns() {
+    try {
+      const raw = localStorage.getItem(this.EXAM_RUNS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  saveExamRun(run) {
+    const runs = this.getExamRuns();
+    runs.unshift(run);
+    if (runs.length > 30) runs.length = 30;
+    this.replaceExamRuns(runs);
+    if (PTE.Cloud && PTE.Cloud.accessToken) {
+      PTE.Cloud.push({ examRuns: [run] }).catch(() => {});
+    }
+  },
+
+  replaceExamRuns(runs) {
+    try { localStorage.setItem(this.EXAM_RUNS_KEY, JSON.stringify(runs.slice(0, 30))); } catch (e) {}
   }
 };

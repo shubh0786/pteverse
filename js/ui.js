@@ -8,7 +8,22 @@ window.PTE = window.PTE || {};
 PTE.UI = {
   /** Brand mark inline SVG */
   brandMark(size = 32) {
-    return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#6d5cff"/><circle cx="16" cy="16" r="8" fill="none" stroke="white" stroke-width="1.6"/><path d="M8 16h16M16 8v16M10.5 11.5c3.5 2.5 7.5 2.5 11 0M10.5 20.5c3.5-2.5 7.5-2.5 11 0" fill="none" stroke="white" stroke-width="1.4"/></svg>`;
+    const gradientId = `pte-mark-gradient-${Math.round(size)}-${Math.random().toString(16).slice(2, 8)}`;
+    return `<svg width="${size}" height="${size}" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="${gradientId}" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#8B7DFF"/>
+          <stop offset="0.56" stop-color="#7A6CFF"/>
+          <stop offset="1" stop-color="#17D7D0"/>
+        </linearGradient>
+      </defs>
+      <rect x="4" y="4" width="56" height="56" rx="18" fill="url(#${gradientId})"/>
+      <path d="M24 18h13a11 11 0 0 1 0 22H24V18Z" fill="none" stroke="white" stroke-width="4.5" stroke-linejoin="round"/>
+      <path d="M24 18v28" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+      <circle cx="44.5" cy="20" r="8" fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="2.4"/>
+      <path d="M44.5 12c5 0 9 4 9 8.5" stroke="rgba(255,255,255,0.8)" stroke-width="2.4" stroke-linecap="round"/>
+      <circle cx="44.5" cy="20" r="2.2" fill="white"/>
+    </svg>`;
   },
 
   /** Navigation bar */
@@ -17,6 +32,7 @@ PTE.UI = {
     const links = [
       { href:'#/', label:'Home', page:'home' },
       { href:'#/practice', label:'Speaking', page:'practice' },
+      { href:'#/command-center', label:'Command Center', page:'command-center' },
       { href:'#/writing', label:'Writing', page:'writing' },
       { href:'#/reading', label:'Reading', page:'reading' },
       { href:'#/listening', label:'Listening', page:'listening' },
@@ -33,6 +49,7 @@ PTE.UI = {
       { label:'Study', items:[
         { href:'#/vocab', label:'Vocab Builder', page:'vocab', icon:'🃏' },
         { href:'#/templates', label:'Templates', page:'templates', icon:'📝' },
+        { href:'#/skills-coach', label:'Skills Coach', page:'skills-coach', icon:'🎯' },
         { href:'#/review', label:'Spaced Review', page:'review', icon:'🧠' },
         { href:'#/planner', label:'Study Planner', page:'planner', icon:'📋' },
         { href:'#/notebook', label:'Mistake Notebook', page:'notebook', icon:'📓' },

@@ -8,6 +8,20 @@ window.PTE = window.PTE || {};
 PTE.Auth = {
   USERS_KEY: 'crackpte_users',
   SESSION_KEY: 'crackpte_session',
+  // Temporary local preview bypass. Never enabled on deployed hosts.
+  isLocalPreview() {
+    return location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  },
+
+  getPreviewUser() {
+    return {
+      id: 'local-preview-user',
+      username: 'Preview Student',
+      email: 'preview@pteverse.local',
+      avatarColor: '#8b7dff',
+      createdDate: 'Local preview'
+    };
+  },
 
   // ── Storage Helpers ─────────────────────────────────────────
 
@@ -54,6 +68,7 @@ PTE.Auth = {
   // ── Auth State ──────────────────────────────────────────────
 
   isLoggedIn() {
+    if (this.isLocalPreview()) return true;
     const session = this.getSession();
     if (!session || !session.userId) {
       console.log('[Auth] No session found');
@@ -68,6 +83,7 @@ PTE.Auth = {
   },
 
   getCurrentUser() {
+    if (this.isLocalPreview()) return this.getPreviewUser();
     const session = this.getSession();
     if (!session || !session.userId) return null;
     const users = this.getUsers();
@@ -75,6 +91,7 @@ PTE.Auth = {
   },
 
   getCurrentUserId() {
+    if (this.isLocalPreview()) return this.getPreviewUser().id;
     const session = this.getSession();
     return session ? session.userId : null;
   },
@@ -162,10 +179,13 @@ PTE.Auth = {
   // ── Logout ──────────────────────────────────────────────────
 
   logout() {
+    if (this.isLocalPreview()) {
+      location.hash = '#/';
+      return;
+    }
     this.clearSession();
-    // Reset storage keys to defaults (will be re-activated on next login)
+    if (PTE.Cloud) PTE.Cloud.logout();
     this._resetStorageKeys();
-    // Navigate to login
     location.hash = '#/login';
   },
 
@@ -227,6 +247,7 @@ PTE.Auth = {
 
     // Update every module's storage key
     if (PTE.Store) PTE.Store.STORAGE_KEY = 'pte_speaking_progress' + suffix;
+    if (PTE.Store) PTE.Store.EXAM_RUNS_KEY = 'pte_exam_runs' + suffix;
     if (PTE.Gamify) PTE.Gamify.STORAGE_KEY = 'crackpte_gamify' + suffix;
     if (PTE.Daily) PTE.Daily.STORAGE_KEY = 'crackpte_daily' + suffix;
     if (PTE.Vocab) PTE.Vocab.STORAGE_KEY = 'crackpte_vocab' + suffix;
@@ -243,6 +264,7 @@ PTE.Auth = {
 
   _resetStorageKeys() {
     if (PTE.Store) PTE.Store.STORAGE_KEY = 'pte_speaking_progress';
+    if (PTE.Store) PTE.Store.EXAM_RUNS_KEY = 'pte_exam_runs';
     if (PTE.Gamify) PTE.Gamify.STORAGE_KEY = 'crackpte_gamify';
     if (PTE.Daily) PTE.Daily.STORAGE_KEY = 'crackpte_daily';
     if (PTE.Vocab) PTE.Vocab.STORAGE_KEY = 'crackpte_vocab';
@@ -318,11 +340,35 @@ PTE.Auth = {
       : '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>';
   },
 
-  _handleLogin(e) {
+  async _handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     const errorEl = document.getElementById('login-error');
+
+    if (PTE.Cloud) {
+      const cloud = await PTE.Cloud.login(email, password);
+      if (cloud.success && cloud.user) {
+        this.saveSession({ userId: cloud.user.id, loginAt: Date.now(), cloud: true });
+        const users = this.getUsers();
+        if (!users.some((u) => u.id === cloud.user.id)) {
+          users.push({
+            id: cloud.user.id,
+            username: cloud.user.username,
+            email: cloud.user.email,
+            passwordHash: this._hash(password),
+            avatarColor: this._avatarColor(cloud.user.username),
+            createdAt: Date.now(),
+            createdDate: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+            cloud: true
+          });
+          this.saveUsers(users);
+        }
+        this.activateUserStorage();
+        location.hash = '#/';
+        return;
+      }
+    }
 
     const result = this.login(email, password);
     if (result.success) {
@@ -333,7 +379,7 @@ PTE.Auth = {
     }
   },
 
-  _handleSignup(e) {
+  async _handleSignup(e) {
     e.preventDefault();
     const username = document.getElementById('signup-username').value;
     const email = document.getElementById('signup-email').value;
@@ -345,6 +391,18 @@ PTE.Auth = {
       errorEl.textContent = 'Passwords do not match.';
       errorEl.classList.remove('hidden');
       return;
+    }
+
+    if (PTE.Cloud) {
+      const cloud = await PTE.Cloud.signup(email, password, username);
+      if (cloud.success && cloud.user) {
+        const local = this.signup(username, email, password);
+        if (!local.success && local.error && local.error.indexOf('already exists') !== -1) {
+          this.login(email, password);
+        }
+        location.hash = '#/';
+        return;
+      }
     }
 
     const result = this.signup(username, email, password);

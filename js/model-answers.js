@@ -29,8 +29,34 @@ PTE.ModelAnswers = {
         return this._summarizeGroupScript(question);
       case 'respond-to-situation':
         return this._respondSituationScript(question);
+      case 'swt':
+        return {
+          intro: 'Write one sentence that covers the main point and a key supporting detail.',
+          text: question.model || question.text || '',
+          tips: ['Stay in one sentence.', 'Keep 5–75 words.', 'Do not copy long chunks.']
+        };
+      case 'write-essay':
+        return {
+          intro: 'Use a four-paragraph template: intro, two body points, conclusion.',
+          text: question.model || 'Introduction with a clear position. Body 1 with an example. Body 2 with a counter-point and rebuttal. Conclusion restating the position.',
+          tips: ['Aim 200–300 words.', 'Leave 2 minutes to check grammar.']
+        };
+      case 'sst':
+        return {
+          intro: 'Summarize the lecture in 50–70 words.',
+          text: question.model || question.audioText || question.text || '',
+          tips: ['Main idea plus two supports.', 'Check the word count.']
+        };
+      case 'l-wfd':
+        return {
+          intro: 'Type every word you hear, including articles.',
+          text: question.text || question.audioText || '',
+          tips: ['Write immediately.', 'Check plurals and articles.']
+        };
       default:
-        return null;
+        return question && (question.model || question.answer || question.text)
+          ? { intro: 'Reference answer', text: question.model || question.answer || question.text, tips: [] }
+          : null;
     }
   },
 

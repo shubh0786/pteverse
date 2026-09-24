@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#09090b">
   <meta name="color-scheme" content="dark">
   <title>PTEverse — Full PTE Academic Prep, All 22 Question Types</title>
-  <meta name="description" content="PTEverse Academic — full prep for all 4 sections and 22 question types including 2025 updates. 600+ speaking predictions, AI scoring, 4-module mock tests, and smart progress tracking.">
+  <meta name="description" content="PTEverse Academic — full prep for all 4 sections and 22 question types. AI-assisted score estimates, mock tests, and progress tracking. Not official Pearson scoring.">
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -36,10 +36,10 @@
   <link href="https://cdn.jsdelivr.net/npm/geist@1.3.1/dist/fonts/geist-mono/style.min.css" rel="stylesheet">
   
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/app.css?v=font-contrast-20260925">
   
   <!-- Favicon -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236d5cff'/><circle cx='16' cy='16' r='8' fill='none' stroke='white' stroke-width='1.6'/><path d='M8 16h16M16 8v16M10.5 11.5c3.5 2.5 7.5 2.5 11 0M10.5 20.5c3.5-2.5 7.5-2.5 11 0' fill='none' stroke='white' stroke-width='1.4'/></svg>">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='8' y1='8' x2='56' y2='56' gradientUnits='userSpaceOnUse'%3E%3Cstop stop-color='%238B7DFF'/%3E%3Cstop offset='0.56' stop-color='%237A6CFF'/%3E%3Cstop offset='1' stop-color='%2317D7D0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='4' y='4' width='56' height='56' rx='18' fill='url(%23g)'/%3E%3Cpath d='M24 18h13a11 11 0 0 1 0 22H24V18Z' fill='none' stroke='white' stroke-width='4.5' stroke-linejoin='round'/%3E%3Cpath d='M24 18v28' stroke='white' stroke-width='4.5' stroke-linecap='round'/%3E%3Ccircle cx='44.5' cy='20' r='8' fill='none' stroke='rgba(255,255,255,0.75)' stroke-width='2.4'/%3E%3Cpath d='M44.5 12c5 0 9 4 9 8.5' stroke='rgba(255,255,255,0.8)' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='44.5' cy='20' r='2.2' fill='white'/%3E%3C/svg%3E">
 </head>
 <body class="bg-[#09090b] min-h-screen text-zinc-100 antialiased">
   
@@ -47,8 +47,22 @@
   <div id="app-root">
     <div class="flex flex-col items-center justify-center min-h-screen bg-[#09090b]">
       <div class="flex items-center gap-3 mb-8">
-        <div class="w-10 h-10 rounded-xl bg-accent flex items-center justify-center">
-          <svg width="20" height="20" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="8" stroke="white" stroke-width="1.6"/><path d="M8 16h16M16 8v16M10.5 11.5c3.5 2.5 7.5 2.5 11 0M10.5 20.5c3.5-2.5 7.5-2.5 11 0" stroke="white" stroke-width="1.4"/></svg>
+        <div class="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-violet-500/20">
+          <svg width="40" height="40" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="loader-logo" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#8B7DFF"/>
+                <stop offset="0.56" stop-color="#7A6CFF"/>
+                <stop offset="1" stop-color="#17D7D0"/>
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="56" height="56" rx="18" fill="url(#loader-logo)"/>
+            <path d="M24 18h13a11 11 0 0 1 0 22H24V18Z" fill="none" stroke="white" stroke-width="4.5" stroke-linejoin="round"/>
+            <path d="M24 18v28" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+            <circle cx="44.5" cy="20" r="8" fill="none" stroke="rgba(255,255,255,0.75)" stroke-width="2.4"/>
+            <path d="M44.5 12c5 0 9 4 9 8.5" stroke="rgba(255,255,255,0.8)" stroke-width="2.4" stroke-linecap="round"/>
+            <circle cx="44.5" cy="20" r="2.2" fill="white"/>
+          </svg>
         </div>
         <span class="text-xl font-semibold tracking-tight text-zinc-100">PTEverse</span>
       </div>
@@ -58,18 +72,22 @@
 
   <!-- JavaScript Files -->
   <script src="js/data.js"></script>
+  <script src="js/content-meta.js"></script>
   <script src="js/data-writing.js"></script>
   <script src="js/data-reading.js"></script>
   <script src="js/data-listening.js"></script>
   <script src="js/auth.js"></script>
+  <script src="js/cloud.js"></script>
   <script src="js/predictions.js"></script>
   <script src="js/predictions-new.js"></script>
   <script src="js/predictions-la.js"></script>
   <script src="js/predictions-wrl.js"></script>
+  <script src="js/predictions-researched.js"></script>
   <script src="js/bank-speaking.js"></script>
   <script src="js/bank-vocab.js"></script>
   <script src="js/bank-reading.js"></script>
   <script src="js/bank-listening.js"></script>
+  <script src="js/bank-extra.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/tone.js"></script>
   <script src="js/ai-feedback.js"></script>
@@ -86,6 +104,8 @@
   <script src="js/challenge.js"></script>
   <script src="js/accent.js"></script>
   <script src="js/fluency.js"></script>
+  <script src="js/skills-coach.js"></script>
+  <script src="js/command-center.js"></script>
   <script src="js/score-predictor.js"></script>
   <script src="js/smart-practice.js"></script>
   <script src="js/pressure.js"></script>
@@ -106,5 +126,10 @@
   <script src="js/exam.js"></script>
   <script src="js/effects.js"></script>
   <script src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      navigator.serviceWorker.register('service-worker.js').catch(() => {});
+    }
+  </script>
 </body>
 </html>

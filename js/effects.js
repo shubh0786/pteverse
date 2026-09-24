@@ -10,6 +10,7 @@ PTE.Effects = {
   init() {
     this.initScrollReveal();
     this.initRipple();
+    this.initParallax();
     this.initMobileBottomNav();
     this.initDropdownEscape();
 
@@ -19,6 +20,20 @@ PTE.Effects = {
         this.refreshMobileBottomNav();
       }, 100);
     });
+  },
+
+  initParallax() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const root = document.documentElement;
+    let frame = null;
+    window.addEventListener('pointermove', (event) => {
+      if (event.pointerType === 'touch') return;
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        root.style.setProperty('--pointer-x', `${(event.clientX / window.innerWidth - 0.5) * 2}`);
+        root.style.setProperty('--pointer-y', `${(event.clientY / window.innerHeight - 0.5) * 2}`);
+      });
+    }, { passive: true });
   },
 
   // ── Scroll Reveal ──────────────────────────────────

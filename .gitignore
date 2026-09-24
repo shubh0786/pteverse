@@ -11,3 +11,7 @@ desktop.ini
 
 # Terminal files
 terminals/
+
+# Netlify / Node
+.netlify
+node_modules/

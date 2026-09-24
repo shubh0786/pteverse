@@ -714,6 +714,48 @@ PTE.TTS = {
   }
 };
 
+PTE.Audio = {
+  context: null,
+
+  ensureContext() {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!this.context) this.context = new Ctx();
+    if (this.context.state === 'suspended') {
+      this.context.resume().catch(() => {});
+    }
+    return this.context;
+  },
+
+  unlock() {
+    return this.ensureContext();
+  },
+
+  beep({ frequency = 880, duration = 0.14, volume = 0.055, sweep = 0, type = 'sine' } = {}) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const now = ctx.currentTime;
+
+    osc.type = type;
+    osc.frequency.setValueAtTime(frequency, now);
+    if (sweep !== 0) {
+      osc.frequency.exponentialRampToValueAtTime(Math.max(80, frequency + sweep), now + duration);
+    }
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration + 0.04);
+  }
+};
+
 // ── Timer ──────────────────────────────────────────────────────
 
 PTE.Timer = {
@@ -733,12 +775,17 @@ PTE.Timer = {
     this.isPaused = false;
 
     if (this.onTick) this.onTick(this.remaining, this.total);
+    if (seconds > 0 && PTE.Audio) PTE.Audio.beep({ frequency: 620, duration: 0.12, volume: 0.05, sweep: 80 });
 
     this.interval = setInterval(() => {
       if (!this.isPaused) {
         this.remaining--;
         if (this.onTick) this.onTick(this.remaining, this.total);
+        if (this.remaining <= 3 && this.remaining > 0 && PTE.Audio) {
+          PTE.Audio.beep({ frequency: 680 + (4 - this.remaining) * 90, duration: 0.1, volume: 0.05, sweep: 70 });
+        }
         if (this.remaining <= 0) {
+          if (PTE.Audio) PTE.Audio.beep({ frequency: 980, duration: 0.18, volume: 0.065, sweep: 180 });
           this.stop();
           if (this.onComplete) this.onComplete();
         }

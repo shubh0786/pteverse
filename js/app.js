@@ -24,12 +24,38 @@ PTE.App = {
   // ── Initialization ───────────────────────────────────────────
 
   async init() {
+    if (PTE.UI && PTE.UI.applyTheme) PTE.UI.applyTheme();
     // ── 1. Merge question banks (synchronous, fast) ──
     if (PTE.mergePredictions) PTE.mergePredictions();
     if (PTE.mergeBankSpeaking) PTE.mergeBankSpeaking();
     if (PTE.mergeBankVocab) PTE.mergeBankVocab();
     if (PTE.mergeBankReading) PTE.mergeBankReading();
     if (PTE.mergeBankListening) PTE.mergeBankListening();
+    if (PTE.ExtraQuestions) {
+      const extra = PTE.ExtraQuestions;
+      Object.keys(extra.speaking || {}).forEach((typeId) => {
+        if (!PTE.Questions[typeId]) PTE.Questions[typeId] = [];
+        extra.speaking[typeId].forEach((q) => {
+          if (!PTE.Questions[typeId].some((item) => item.id === q.id)) PTE.Questions[typeId].push(q);
+        });
+      });
+      Object.keys(extra.writing || {}).forEach((typeId) => {
+        if (!PTE.WritingQuestions) return;
+        if (!PTE.WritingQuestions[typeId]) PTE.WritingQuestions[typeId] = [];
+        extra.writing[typeId].forEach((q) => {
+          if (!PTE.WritingQuestions[typeId].some((item) => item.id === q.id)) PTE.WritingQuestions[typeId].push(q);
+        });
+      });
+    }
+    if (PTE.ContentMeta) {
+      PTE.ContentMeta.stampBank(PTE.Questions);
+      PTE.ContentMeta.stampBank(PTE.Predictions);
+      PTE.ContentMeta.stampBank(PTE.WritingQuestions);
+      PTE.ContentMeta.stampBank(PTE.ReadingQuestions);
+      PTE.ContentMeta.stampBank(PTE.ListeningQuestions);
+      PTE.ContentMeta.applyRecordedAudio(PTE.Questions, ['repeat-sentence', 'retell-lecture', 'answer-short-question', 'summarize-group-discussion']);
+      PTE.ContentMeta.applyRecordedAudio(PTE.ListeningQuestions, ['sst', 'l-fib', 'l-wfd', 'l-hcs', 'l-smw']);
+    }
 
     let total = 0;
     Object.keys(PTE.Questions).forEach(function(k) { total += PTE.Questions[k].length; });
@@ -41,6 +67,10 @@ PTE.App = {
       PTE.Auth.activateUserStorage();
       const user = PTE.Auth.getCurrentUser();
       console.log('[PTE] Session restored for:', user ? user.username : 'unknown');
+      if (PTE.Cloud) {
+        PTE.Cloud.restoreToken();
+        PTE.Cloud.pull().then((remote) => PTE.Cloud.applyRemote(remote)).catch(() => {});
+      }
     } else {
       console.log('[PTE] No active session');
     }
@@ -61,6 +91,7 @@ PTE.App = {
     PTE.Router.on('/progress', () => this.requireAuth(() => this.renderPage('progress')));
     PTE.Router.on('/mock-test', () => this.requireAuth(() => this.renderPage('mock-test')));
     PTE.Router.on('/predictions', () => this.requireAuth(() => this.renderPage('predictions')));
+    PTE.Router.on('/researched-predictions', () => this.requireAuth(() => this.renderPage('researched-predictions')));
     PTE.Router.on('/daily', () => this.requireAuth(() => this.renderPage('daily')));
     PTE.Router.on('/vocab', () => this.requireAuth(() => this.renderPage('vocab')));
     PTE.Router.on('/templates', () => this.requireAuth(() => this.renderPage('templates')));
@@ -71,6 +102,8 @@ PTE.App = {
     PTE.Router.on('/notebook', () => this.requireAuth(() => this.renderPage('notebook')));
     PTE.Router.on('/accent', () => this.requireAuth(() => this.renderPage('accent')));
     PTE.Router.on('/fluency', () => this.requireAuth(() => this.renderPage('fluency')));
+    PTE.Router.on('/skills-coach', () => this.requireAuth(() => this.renderPage('skills-coach')));
+    PTE.Router.on('/command-center', () => this.requireAuth(() => this.renderPage('command-center')));
     PTE.Router.on('/target', () => this.requireAuth(() => this.renderPage('target')));
     PTE.Router.on('/weak-words', () => this.requireAuth(() => this.renderPage('weak-words')));
     PTE.Router.on('/reminders', () => this.requireAuth(() => this.renderPage('reminders')));
@@ -142,6 +175,7 @@ PTE.App = {
       case 'progress': root.innerHTML = PTE.Analytics ? PTE.Analytics.renderPage() : PTE.Pages.progress(); break;
       case 'mock-test': root.innerHTML = PTE.Pages.mockTest(); break;
       case 'predictions': root.innerHTML = PTE.Pages.predictions(); break;
+      case 'researched-predictions': root.innerHTML = PTE.Pages.researchedPredictions(); break;
       case 'daily': root.innerHTML = PTE.Daily ? PTE.Daily.renderPage() : PTE.Pages.home(); break;
       case 'vocab': root.innerHTML = PTE.Vocab ? PTE.Vocab.renderPage() : PTE.Pages.home(); break;
       case 'templates': root.innerHTML = PTE.Templates ? PTE.Templates.renderPage() : PTE.Pages.home(); break;
@@ -152,6 +186,8 @@ PTE.App = {
       case 'notebook': root.innerHTML = PTE.Pages.notebook ? PTE.Pages.notebook() : PTE.Pages.home(); break;
       case 'accent': root.innerHTML = PTE.AccentAnalyzer ? PTE.AccentAnalyzer.renderPage() : PTE.Pages.home(); break;
       case 'fluency': root.innerHTML = PTE.Fluency ? PTE.Fluency.renderPage() : PTE.Pages.home(); break;
+      case 'skills-coach': root.innerHTML = PTE.SkillsCoach ? PTE.SkillsCoach.renderPage() : PTE.Pages.home(); break;
+      case 'command-center': root.innerHTML = PTE.CommandCenter ? PTE.CommandCenter.renderPage() : PTE.Pages.home(); break;
       case 'target': root.innerHTML = PTE.TargetScore ? PTE.TargetScore.renderPage() : PTE.Pages.home(); break;
       case 'weak-words': root.innerHTML = PTE.WeakWords ? PTE.WeakWords.renderPage() : PTE.Pages.home(); break;
       case 'reminders': root.innerHTML = PTE.Reminders ? PTE.Reminders.renderPage() : PTE.Pages.home(); break;
@@ -238,7 +274,8 @@ PTE.App = {
 
     // Filter questions: predictions only, or all
     if (predictionsOnly && PTE.Predictions && PTE.Predictions[typeId]) {
-      this.currentQuestions = PTE.Predictions[typeId];
+      this.currentQuestions = (PTE.Predictions[typeId] || []).filter((q) => !q.stale);
+      if (this.currentQuestions.length === 0) this.currentQuestions = PTE.Predictions[typeId];
     } else {
       this.currentQuestions = PTE.Questions[typeId];
     }
@@ -260,6 +297,17 @@ PTE.App = {
       if (idx >= 0) initialIndex = idx;
     }
     this.loadQuestion(initialIndex);
+
+    const speechAvailable = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    if (!speechAvailable) {
+      const area = document.getElementById('practice-area');
+      if (area) {
+        const note = document.createElement('div');
+        note.className = 'px-4 py-3 text-xs text-amber-400 bg-amber-500/8 border-b border-amber-500/10';
+        note.textContent = 'Chrome is recommended for live captions. Safari and Firefox have limited speech recognition. Server transcription is used for the scored transcript when deployed.';
+        area.parentNode.insertBefore(note, area);
+      }
+    }
   },
 
   /**
@@ -336,6 +384,13 @@ PTE.App = {
 
     const type = this.currentTypeConfig;
     const q = this.currentQuestion;
+    if (q && q.source) {
+      try {
+        const seen = JSON.parse(localStorage.getItem('pte_prediction_seen') || '{}');
+        seen[q.id] = { seenAt: Date.now(), source: q.source };
+        localStorage.setItem('pte_prediction_seen', JSON.stringify(seen));
+      } catch (e) {}
+    }
 
     let content = '<div class="p-5">';
 
@@ -596,9 +651,10 @@ PTE.App = {
     const type = this.currentTypeConfig;
     const q = this.currentQuestion;
 
-    // ── Mobile fix: Unlock TTS inside the user gesture (tap/click) ──
+    // ── Mobile fix: Unlock TTS + audio cues inside the user gesture (tap/click) ──
     // Must happen BEFORE any async calls to preserve the gesture context
     if (PTE.TTS) PTE.TTS.unlock();
+    if (PTE.Audio) PTE.Audio.unlock();
 
     // Request mic access (reuse existing stream if still alive)
     if (!PTE.AudioRecorder.isStreamActive()) {
@@ -953,7 +1009,8 @@ PTE.App = {
       console.error('[PTE] Missing type or question in evaluate');
       return;
     }
-    const transcript = (PTE.SpeechRecognizer.transcript || '').trim();
+    const liveTranscript = (PTE.SpeechRecognizer.transcript || '').trim();
+    const transcript = liveTranscript;
     const confidence = PTE.SpeechRecognizer.getAverageConfidence() || 0;
     const wordTimestamps = PTE.SpeechRecognizer.wordTimestamps || [];
     const recordDuration = this.recordingStartTime ? (Date.now() - this.recordingStartTime) / 1000 : 0;
@@ -1005,6 +1062,7 @@ PTE.App = {
         duration: recordDuration,
         maxDuration: type.recordTime
       });
+      aiFeedback.source = 'local';
     }
 
     // Build the results UI
@@ -1096,7 +1154,8 @@ PTE.App = {
       html += `
       <div class="mt-4 glass rounded-xl p-4 max-w-lg mx-auto">
         <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Recognized Speech:</label>
-        <p class="text-sm text-gray-400">${transcript}</p>
+        <p class="text-sm text-gray-400" id="recognized-speech-text">${transcript}</p>
+        <p class="text-[10px] text-zinc-600 mt-1" id="transcript-source-label">Live caption (browser)</p>
       </div>`;
     }
 
@@ -1188,6 +1247,72 @@ PTE.App = {
     }
 
     this.phase = 'review';
+    this._hydrateRemoteScoring({
+      type: type.id,
+      transcript,
+      expected: expectedText,
+      keywords: q.keywords,
+      duration: recordDuration,
+      maxDuration: type.recordTime,
+      scores,
+      confidence,
+      localFeedback: aiFeedback
+    });
+  },
+
+  async _hydrateRemoteScoring(params) {
+    const blob = PTE.AudioRecorder && PTE.AudioRecorder.audioBlob;
+    let uploadAudio = false;
+    try { uploadAudio = localStorage.getItem('pte_upload_audio') === 'true'; } catch (e) {}
+    if (blob && blob.size > 0 && uploadAudio) {
+      try {
+        const form = new FormData();
+        form.append('audio', blob, 'attempt.webm');
+        form.append('liveTranscript', params.transcript || '');
+        form.append('type', params.type || '');
+        const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.transcript) {
+            const textEl = document.getElementById('recognized-speech-text');
+            const label = document.getElementById('transcript-source-label');
+            if (textEl) textEl.textContent = data.transcript;
+            if (label) {
+              label.textContent = data.source === 'server'
+                ? 'Scored transcript (server) — live captions stay on-device'
+                : 'Live caption (browser); server transcription unavailable';
+            }
+            params.transcript = data.transcript;
+          }
+        }
+      } catch (e) {
+        console.warn('[PTE] transcribe skipped', e);
+      }
+    }
+
+    if (!PTE.AIFeedback || !PTE.AIFeedback.scoreRemote || !uploadAudio) return;
+    const remote = await PTE.AIFeedback.scoreRemote(params, params.localFeedback);
+    const slot = document.getElementById('ai-feedback-source-badge');
+    const summary = document.getElementById('ai-feedback-summary');
+    const drills = document.getElementById('ai-feedback-drills');
+    const bands = document.getElementById('ai-feedback-bands');
+    if (slot) {
+      slot.textContent = remote.source === 'ai' ? 'AI scored' : 'Estimated (local)';
+      slot.className = remote.source === 'ai'
+        ? 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/20'
+        : 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-700/40 text-zinc-400 border border-zinc-600/30';
+    }
+    if (summary && remote.overallSummary) summary.textContent = remote.overallSummary;
+    if (bands && remote.remoteBands) {
+      const labels = { content: 'Content', pronunciation: 'Pronunciation', fluency: 'Fluency' };
+      bands.innerHTML = Object.keys(labels)
+        .filter((key) => remote.remoteBands[key] !== null && remote.remoteBands[key] !== undefined)
+        .map((key) => `<span class="text-[10px] px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-300">${labels[key]}: ${remote.remoteBands[key]}</span>`)
+        .join('');
+    }
+    if (drills && Array.isArray(remote.nextDrills)) {
+      drills.innerHTML = remote.nextDrills.map((d) => `<p class="text-xs text-zinc-400 bg-white/[0.03] rounded-lg px-3 py-2 mb-1">${d}</p>`).join('');
+    }
   },
 
   // ── Render Tone Analysis ─────────────────────────────────────
@@ -1287,11 +1412,14 @@ PTE.App = {
     <div class="mt-5 card-elevated overflow-hidden max-w-md mx-auto animate-fadeIn">
       <div class="bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-3 text-center">
         <h3 class="text-white text-xs font-semibold">AI Feedback</h3>
+        <span id="ai-feedback-source-badge" class="mt-1 inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-zinc-900/30 text-white/80 border border-white/10">${fb.source === 'ai' ? 'AI scored' : 'Estimated (local)'}</span>
       </div>
       <div class="p-4">`;
 
     // Overall summary
-    html += `<p class="text-xs text-zinc-300 mb-4 leading-relaxed">${fb.overallSummary}</p>`;
+    html += `<p id="ai-feedback-summary" class="text-xs text-zinc-300 mb-4 leading-relaxed">${fb.overallSummary}</p>
+      <div id="ai-feedback-bands" class="flex flex-wrap gap-1.5 mb-4"></div>
+      <div id="ai-feedback-drills" class="mb-4"></div>`;
 
     // Strengths
     if (fb.strengths.length > 0) {
@@ -1521,6 +1649,57 @@ PTE.App = {
     } catch(e) {
       const msg = document.getElementById('data-msg');
       if (msg) { msg.className = 'mb-4 p-3 rounded-xl text-sm font-medium bg-red-500/15 text-red-400 border border-red-500/20'; msg.textContent = 'Export failed: ' + e.message; msg.classList.remove('hidden'); }
+    }
+  },
+
+  _exportTutorReport() {
+    try {
+      const sessions = PTE.Store.getAll().sessions || [];
+      const recent = sessions.slice(0, 50);
+      const lines = [
+        'PTEverse Tutor Progress Report',
+        `Generated: ${new Date().toLocaleString()}`,
+        '',
+        `Total recorded attempts: ${sessions.length}`,
+        `Average score: ${sessions.length ? Math.round(sessions.reduce((sum, s) => sum + (s.overallScore || 0), 0) / sessions.length) : 0}/90`,
+        '',
+        'Recent attempts:'
+      ];
+      recent.forEach((session, index) => {
+        lines.push(`${index + 1}. ${session.type || 'unknown'} | ${session.overallScore || 0}/90 | ${session.date || ''} | ${session.questionId || ''}`);
+        if (session.transcript) lines.push(`   Transcript: ${session.transcript}`);
+      });
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `pteverse-tutor-report-${new Date().toISOString().slice(0, 10)}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Tutor report export failed:', error);
+    }
+  },
+
+  async _runDiagnostics() {
+    const msg = document.getElementById('data-msg');
+    if (msg) {
+      msg.className = 'mb-4 p-3 rounded-xl text-sm font-medium bg-blue-500/15 text-blue-400 border border-blue-500/20';
+      msg.textContent = 'Checking app services...';
+      msg.classList.remove('hidden');
+    }
+    const checks = [`Browser: ${navigator.onLine ? 'online' : 'offline'}`, `Audio upload: ${(() => { try { return localStorage.getItem('pte_upload_audio') === 'true' ? 'enabled' : 'disabled'; } catch (e) { return 'disabled'; } })()}`];
+    if (PTE.Cloud) {
+      const available = await PTE.Cloud.probe();
+      checks.push(`Netlify Identity: ${available ? 'available' : 'not detected'}`);
+      checks.push(`Cloud token: ${PTE.Cloud.accessToken ? 'present' : 'not signed in'}`);
+    }
+    checks.push(`Service worker: ${'serviceWorker' in navigator && navigator.serviceWorker.controller ? 'active' : 'not active yet'}`);
+    if (msg) {
+      msg.className = 'mb-4 p-3 rounded-xl text-sm font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20';
+      msg.innerHTML = checks.join('<br>');
     }
   },
 
