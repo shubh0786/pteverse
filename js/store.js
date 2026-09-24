@@ -17,7 +17,7 @@ PTE.Store = {
     }
   },
 
-  save(data, sync = true) {
+  save(data) {
     try {
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
@@ -25,7 +25,7 @@ PTE.Store = {
     }
   },
 
-  addSession(session) {
+  addSession(session, shouldSync = true) {
     const data = this.getAll();
     session.timestamp = Date.now();
     session.date = new Date().toLocaleDateString('en-US', {
@@ -41,7 +41,7 @@ PTE.Store = {
     // Update stats
     this.updateStats(data);
     this.save(data);
-    if (sync && PTE.Cloud && PTE.Cloud.accessToken) {
+    if (shouldSync && PTE.Cloud && PTE.Cloud.accessToken) {
       PTE.Cloud.syncNow().catch(() => {});
     }
   },
