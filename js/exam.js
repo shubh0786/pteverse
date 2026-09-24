@@ -298,13 +298,13 @@ PTE.Exam = {
     // Get microphone access upfront (only if the test includes speaking)
     const hasSpeaking = this.config.sections.some(s => (s.module || 'speaking') === 'speaking');
     if (hasSpeaking) {
-      try {
-        this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (e) {
+      const micOk = await PTE.AudioRecorder.init();
+      if (!micOk) {
         alert('Microphone access is required for this mock test. Please allow microphone access and try again.');
         this.active = false;
         return;
       }
+      this.micStream = PTE.AudioRecorder.stream;
     } else {
       this.micStream = null;
     }
@@ -466,8 +466,8 @@ PTE.Exam = {
 
     await this._showTransition();
 
-    // Cleanup any module state
-    if (PTE.AudioRecorder) PTE.AudioRecorder.cleanup();
+    // Cleanup any module state (keep mic stream alive between speaking items)
+    if (PTE.AudioRecorder) PTE.AudioRecorder.reset();
     if (PTE.ToneAnalyzer) PTE.ToneAnalyzer.cleanup();
     if (PTE.WritingEngine) PTE.WritingEngine.cleanup();
     if (PTE.ListeningEngine) PTE.ListeningEngine.cleanup();
@@ -535,12 +535,20 @@ PTE.Exam = {
       toneResults = PTE.ToneAnalyzer.stop();
     }
     await PTE.AudioRecorder.stop();
-    const speechResult = PTE.SpeechRecognizer.stop();
+    PTE.SpeechRecognizer.stop();
     document.getElementById('exam-waveform-mini').classList.add('hidden');
 
     // ── Evaluate silently ──
     const recordDuration = (Date.now() - this.questionStartTime) / 1000;
-    const transcript = PTE.SpeechRecognizer.transcript.trim();
+    const liveTranscript = (PTE.SpeechRecognizer.transcript || '').trim();
+    let transcript = liveTranscript;
+    if (PTE.Transcribe && PTE.AudioRecorder && PTE.AudioRecorder.audioBlob) {
+      const refined = await PTE.Transcribe.fromBlob(PTE.AudioRecorder.audioBlob, {
+        liveTranscript,
+        questionType: type
+      });
+      transcript = refined.transcript || liveTranscript;
+    }
     const confidence = PTE.SpeechRecognizer.getAverageConfidence();
     const wordTimestamps = PTE.SpeechRecognizer.wordTimestamps;
     const expectedText = question.text || (question.speakers ? question.speakers.map(s => s.text).join(' ') : '') || question.audioText || '';
@@ -733,16 +741,12 @@ PTE.Exam = {
   // ── Recorder Init ────────────────────────────────────────────
 
   async _initRecorder() {
-    PTE.AudioRecorder.cleanup();
-    if (this.micStream) {
-      PTE.AudioRecorder.stream = this.micStream;
-      PTE.AudioRecorder.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const source = PTE.AudioRecorder.audioContext.createMediaStreamSource(this.micStream);
-      PTE.AudioRecorder.analyser = PTE.AudioRecorder.audioContext.createAnalyser();
-      PTE.AudioRecorder.analyser.fftSize = 256;
-      PTE.AudioRecorder.analyser.smoothingTimeConstant = 0.8;
-      source.connect(PTE.AudioRecorder.analyser);
-      PTE.AudioRecorder.dataArray = new Uint8Array(PTE.AudioRecorder.analyser.frequencyBinCount);
+    PTE.AudioRecorder.reset();
+    if (!PTE.AudioRecorder.isStreamActive()) {
+      const ok = await PTE.AudioRecorder.init();
+      if (ok) this.micStream = PTE.AudioRecorder.stream;
+    } else {
+      this.micStream = PTE.AudioRecorder.stream;
     }
     // Reset speech recognizer
     PTE.SpeechRecognizer.transcript = '';

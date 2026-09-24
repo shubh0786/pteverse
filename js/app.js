@@ -980,8 +980,10 @@ PTE.App = {
 
   // ── Enhanced Evaluation Phase ────────────────────────────────
 
-  evaluatePhase() {
-    try { this._doEvaluate(); } catch(e) {
+  async evaluatePhase() {
+    try {
+      await this._doEvaluate();
+    } catch(e) {
       console.error('[PTE] Evaluation error:', e);
       const scoreArea = document.getElementById('score-area');
       if (scoreArea) {
@@ -1001,7 +1003,7 @@ PTE.App = {
     }
   },
 
-  _doEvaluate() {
+  async _doEvaluate() {
     this.phase = 'evaluating';
     const type = this.currentTypeConfig;
     const q = this.currentQuestion;
@@ -1010,7 +1012,26 @@ PTE.App = {
       return;
     }
     const liveTranscript = (PTE.SpeechRecognizer.transcript || '').trim();
-    const transcript = liveTranscript;
+    let transcript = liveTranscript;
+    let transcriptSource = 'live';
+    const scoreArea = document.getElementById('score-area');
+    if (scoreArea) {
+      scoreArea.classList.remove('hidden');
+      scoreArea.innerHTML = `
+      <div class="glass rounded-2xl p-6 max-w-lg mx-auto text-center animate-fadeIn">
+        <p class="text-zinc-200 font-semibold mb-1">Processing your recording</p>
+        <p class="text-xs text-zinc-500">Improving the transcript before scoring…</p>
+      </div>`;
+    }
+    if (PTE.Transcribe && PTE.AudioRecorder && PTE.AudioRecorder.audioBlob) {
+      const refined = await PTE.Transcribe.fromBlob(PTE.AudioRecorder.audioBlob, {
+        liveTranscript,
+        questionType: type.id
+      });
+      transcript = refined.transcript || liveTranscript;
+      transcriptSource = refined.source || 'live';
+      this._lastTranscriptMeta = refined;
+    }
     const confidence = PTE.SpeechRecognizer.getAverageConfidence() || 0;
     const wordTimestamps = PTE.SpeechRecognizer.wordTimestamps || [];
     const recordDuration = this.recordingStartTime ? (Date.now() - this.recordingStartTime) / 1000 : 0;
@@ -1066,7 +1087,6 @@ PTE.App = {
     }
 
     // Build the results UI
-    const scoreArea = document.getElementById('score-area');
     if (!scoreArea) return;
     scoreArea.classList.remove('hidden');
 
@@ -1155,7 +1175,7 @@ PTE.App = {
       <div class="mt-4 glass rounded-xl p-4 max-w-lg mx-auto">
         <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Recognized Speech:</label>
         <p class="text-sm text-gray-400" id="recognized-speech-text">${transcript}</p>
-        <p class="text-[10px] text-zinc-600 mt-1" id="transcript-source-label">Live caption (browser)</p>
+        <p class="text-[10px] text-zinc-600 mt-1" id="transcript-source-label">${transcriptSource === 'server' ? 'Scored transcript (server audio)' : 'Live caption (browser)'}</p>
       </div>`;
     }
 
@@ -1261,34 +1281,11 @@ PTE.App = {
   },
 
   async _hydrateRemoteScoring(params) {
-    const blob = PTE.AudioRecorder && PTE.AudioRecorder.audioBlob;
-    let uploadAudio = false;
-    try { uploadAudio = localStorage.getItem('pte_upload_audio') === 'true'; } catch (e) {}
-    if (blob && blob.size > 0 && uploadAudio) {
-      try {
-        const form = new FormData();
-        form.append('audio', blob, 'attempt.webm');
-        form.append('liveTranscript', params.transcript || '');
-        form.append('type', params.type || '');
-        const res = await fetch('/api/transcribe', { method: 'POST', body: form });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.transcript) {
-            const textEl = document.getElementById('recognized-speech-text');
-            const label = document.getElementById('transcript-source-label');
-            if (textEl) textEl.textContent = data.transcript;
-            if (label) {
-              label.textContent = data.source === 'server'
-                ? 'Scored transcript (server) — live captions stay on-device'
-                : 'Live caption (browser); server transcription unavailable';
-            }
-            params.transcript = data.transcript;
-          }
-        }
-      } catch (e) {
-        console.warn('[PTE] transcribe skipped', e);
-      }
-    }
+    let uploadAudio = true;
+    try {
+      const flag = localStorage.getItem('pte_upload_audio');
+      if (flag === 'false') uploadAudio = false;
+    } catch (e) {}
 
     if (!PTE.AIFeedback || !PTE.AIFeedback.scoreRemote || !uploadAudio) return;
     const remote = await PTE.AIFeedback.scoreRemote(params, params.localFeedback);
@@ -1690,7 +1687,7 @@ PTE.App = {
       msg.textContent = 'Checking app services...';
       msg.classList.remove('hidden');
     }
-    const checks = [`Browser: ${navigator.onLine ? 'online' : 'offline'}`, `Audio upload: ${(() => { try { return localStorage.getItem('pte_upload_audio') === 'true' ? 'enabled' : 'disabled'; } catch (e) { return 'disabled'; } })()}`];
+    const checks = [`Browser: ${navigator.onLine ? 'online' : 'offline'}`, `Speech API: ${window.SpeechRecognition || window.webkitSpeechRecognition ? 'available' : 'missing'}`, `Transcribe endpoint: ${PTE.Transcribe ? PTE.Transcribe.apiUrl() : 'n/a'}`];
     if (PTE.Cloud) {
       const available = await PTE.Cloud.probe();
       checks.push(`Netlify Identity: ${available ? 'available' : 'not detected'}`);

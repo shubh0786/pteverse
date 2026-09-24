@@ -12,6 +12,7 @@ PTE.AudioRecorder = {
   audioChunks: [],
   audioBlob: null,
   audioUrl: null,
+  mimeType: 'audio/webm',
   stream: null,
   audioContext: null,
   analyser: null,
@@ -19,9 +20,45 @@ PTE.AudioRecorder = {
   isRecording: false,
   animationId: null,
 
+  _micConstraints() {
+    return {
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1
+      }
+    };
+  },
+
+  _pickMimeType() {
+    const types = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/ogg;codecs=opus'
+    ];
+    if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
+    return types.find((t) => MediaRecorder.isTypeSupported(t)) || '';
+  },
+
+  _blobType() {
+    if (this.mediaRecorder && this.mediaRecorder.mimeType) return this.mediaRecorder.mimeType;
+    return this.mimeType || 'audio/webm';
+  },
+
   async init() {
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (this.stream && this.isStreamActive()) {
+        return true;
+      }
+      this.cleanup();
+      try {
+        this.stream = await navigator.mediaDevices.getUserMedia(this._micConstraints());
+      } catch (constraintErr) {
+        console.warn('[Recorder] Constrained mic failed, retrying basic audio:', constraintErr);
+        this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
       this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const source = this.audioContext.createMediaStreamSource(this.stream);
       this.analyser = this.audioContext.createAnalyser();
@@ -55,25 +92,37 @@ PTE.AudioRecorder = {
 
     this.audioChunks = [];
     this.audioBlob = null;
+    if (this.audioUrl) {
+      try { URL.revokeObjectURL(this.audioUrl); } catch (e) {}
+    }
     this.audioUrl = null;
 
+    const mimeType = this._pickMimeType();
+    this.mimeType = mimeType || 'audio/webm';
+
     try {
-      this.mediaRecorder = new MediaRecorder(this.stream);
+      const options = { audioBitsPerSecond: 128000 };
+      if (mimeType) options.mimeType = mimeType;
+      this.mediaRecorder = new MediaRecorder(this.stream, options);
     } catch(e) {
-      console.error('[Recorder] Failed to create MediaRecorder:', e);
-      return false;
+      try {
+        this.mediaRecorder = new MediaRecorder(this.stream);
+      } catch (e2) {
+        console.error('[Recorder] Failed to create MediaRecorder:', e2);
+        return false;
+      }
     }
 
     this.mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) this.audioChunks.push(e.data);
+      if (e.data && e.data.size > 0) this.audioChunks.push(e.data);
     };
     this.mediaRecorder.onstop = () => {
-      this.audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+      this.audioBlob = new Blob(this.audioChunks, { type: this._blobType() });
       this.audioUrl = URL.createObjectURL(this.audioBlob);
     };
 
     try {
-      this.mediaRecorder.start(100);
+      this.mediaRecorder.start(250);
       this.isRecording = true;
       return true;
     } catch(e) {
@@ -86,16 +135,29 @@ PTE.AudioRecorder = {
   stop() {
     return new Promise((resolve) => {
       if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-        this.mediaRecorder.onstop = () => {
-          this.audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-          this.audioUrl = URL.createObjectURL(this.audioBlob);
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          this.audioBlob = new Blob(this.audioChunks, { type: this._blobType() });
+          if (this.audioUrl) {
+            try { URL.revokeObjectURL(this.audioUrl); } catch (e) {}
+          }
+          this.audioUrl = this.audioBlob.size > 0 ? URL.createObjectURL(this.audioBlob) : null;
           this.isRecording = false;
           resolve(this.audioUrl);
         };
+        this.mediaRecorder.onstop = finish;
+        try {
+          if (typeof this.mediaRecorder.requestData === 'function' && this.mediaRecorder.state === 'recording') {
+            this.mediaRecorder.requestData();
+          }
+        } catch (e) {}
         this.mediaRecorder.stop();
+        setTimeout(finish, 1500);
       } else {
         this.isRecording = false;
-        resolve(null);
+        resolve(this.audioUrl);
       }
     });
   },
@@ -199,23 +261,30 @@ PTE.SpeechRecognizer = {
     this.recognition.continuous = true;
     this.recognition.interimResults = true;
     this.recognition.lang = 'en-US';
-    this.recognition.maxAlternatives = 1;
+    this.recognition.maxAlternatives = 3;
 
     this.recognition.onresult = (event) => {
       let interim = '';
       let final = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
+        let best = result[0];
+        for (let a = 1; a < result.length; a++) {
+          if ((result[a].confidence || 0) > (best.confidence || 0)) best = result[a];
+        }
         if (result.isFinal) {
-          final += result[0].transcript;
-          this.confidenceScores.push(result[0].confidence);
+          final += best.transcript;
+          this.confidenceScores.push(best.confidence || 0);
         } else {
-          interim += result[0].transcript;
+          interim += best.transcript;
         }
       }
       if (final) {
-        this.transcript += final;
-        this.wordTimestamps.push({ time: Date.now(), words: final.trim().split(/\s+/).length });
+        const piece = final.trim();
+        if (piece) {
+          this.transcript = this.transcript ? `${this.transcript.trim()} ${piece}` : piece;
+          this.wordTimestamps.push({ time: Date.now(), words: piece.split(/\s+/).length });
+        }
       }
       this.interimTranscript = interim;
       if (this.onResult) {
@@ -300,7 +369,7 @@ PTE.SpeechRecognizer = {
     this.recognition.continuous = true;
     this.recognition.interimResults = true;
     this.recognition.lang = 'en-US';
-    this.recognition.maxAlternatives = 1;
+    this.recognition.maxAlternatives = 3;
 
     if (oldOnResult) this.recognition.onresult = oldOnResult;
     if (oldOnError) this.recognition.onerror = oldOnError;
@@ -374,6 +443,74 @@ PTE.SpeechRecognizer = {
   getAverageConfidence() {
     if (this.confidenceScores.length === 0) return 0;
     return this.confidenceScores.reduce((a, b) => a + b, 0) / this.confidenceScores.length;
+  }
+};
+
+// ── Server transcription (Netlify /api/transcribe; no-op on GitHub Pages) ─
+
+PTE.Transcribe = {
+  apiUrl() {
+    try {
+      const override = localStorage.getItem('pte_transcribe_url');
+      if (override) return override;
+    } catch (e) { /* ignore */ }
+    return '/api/transcribe';
+  },
+
+  wordCount(text) {
+    return (text || '').trim().split(/\s+/).filter(Boolean).length;
+  },
+
+  pickBetter(live, server) {
+    const a = (live || '').trim();
+    const b = (server || '').trim();
+    if (!b) return { transcript: a, source: 'live' };
+    if (!a) return { transcript: b, source: 'server' };
+    if (this.wordCount(b) >= Math.max(1, this.wordCount(a) - 1)) {
+      return { transcript: b, source: 'server' };
+    }
+    return { transcript: a, source: 'live' };
+  },
+
+  fileName(mimeType) {
+    const t = mimeType || '';
+    if (t.includes('mp4')) return 'attempt.m4a';
+    if (t.includes('ogg')) return 'attempt.ogg';
+    if (t.includes('mpeg') || t.includes('mp3')) return 'attempt.mp3';
+    return 'attempt.webm';
+  },
+
+  async fromBlob(blob, { liveTranscript = '', questionType = '', timeoutMs = 20000 } = {}) {
+    const live = (liveTranscript || '').trim();
+    if (!blob || blob.size < 256) {
+      return { transcript: live, source: 'live', skipped: 'empty-audio' };
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const form = new FormData();
+      form.append('audio', blob, this.fileName(blob.type));
+      form.append('liveTranscript', live);
+      form.append('type', questionType || '');
+      const res = await fetch(this.apiUrl(), { method: 'POST', body: form, signal: ctrl.signal });
+      if (!res.ok) {
+        return { transcript: live, source: 'live', skipped: `http-${res.status}` };
+      }
+      const data = await res.json();
+      const picked = this.pickBetter(live, data.transcript);
+      return {
+        transcript: picked.transcript,
+        source: picked.source,
+        liveTranscript: live,
+        serverTranscript: data.transcript || '',
+        blobKey: data.blobKey || null
+      };
+    } catch (e) {
+      const skipped = e && e.name === 'AbortError' ? 'timeout' : 'network';
+      return { transcript: live, source: 'live', skipped };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 };
 
